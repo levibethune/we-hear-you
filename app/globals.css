@@ -1,0 +1,236 @@
+@import "tailwindcss";
+
+:root {
+  --background: #e8e4df;
+  --foreground: #2a2724;
+  --card: #e8e4df;
+  --card-border: transparent;
+  --muted: #8a857e;
+  --accent: #d4784e;
+  --accent-hover: #c0683e;
+  --accent-dim: #e8a080;
+  --seafoam: #2e8b6a;
+  --seafoam-dim: #c5e8dc;
+  --sunshine: #a8860a;
+  --sunshine-dim: #fbe4a8;
+  --peach: #c87a52;
+  --peach-dim: #f8d4c0;
+  --sidebar-bg: #dedad5;
+  --sidebar-border: transparent;
+  --positive: #2e8b6a;
+  --negative: #b84040;
+  --mixed: #a8860a;
+  --neutral: #7a756e;
+  --input-bg: #dedad5;
+
+  /* Neumorphic shadows */
+  --shadow-raised: 6px 6px 12px rgba(0, 0, 0, 0.08), -6px -6px 12px rgba(255, 255, 255, 0.7);
+  --shadow-raised-sm: 3px 3px 6px rgba(0, 0, 0, 0.07), -3px -3px 6px rgba(255, 255, 255, 0.6);
+  --shadow-inset: inset 3px 3px 6px rgba(0, 0, 0, 0.06), inset -3px -3px 6px rgba(255, 255, 255, 0.5);
+  --shadow-raised-hover: 4px 4px 8px rgba(0, 0, 0, 0.1), -4px -4px 8px rgba(255, 255, 255, 0.8);
+}
+
+.dark {
+  --background: #1a1917;
+  --foreground: #e0dcd6;
+  --card: #1a1917;
+  --card-border: transparent;
+  --muted: #9a958e;
+  --accent: #f4a07a;
+  --accent-hover: #f8b898;
+  --accent-dim: #c47a58;
+  --seafoam: #7ecab1;
+  --seafoam-dim: #3a6e5a;
+  --sunshine: #f5c96a;
+  --sunshine-dim: #8a7038;
+  --peach: #f4a07a;
+  --peach-dim: #8a5a40;
+  --sidebar-bg: #151413;
+  --sidebar-border: transparent;
+  --positive: #7ecab1;
+  --negative: #e88b8b;
+  --mixed: #f5c96a;
+  --neutral: #7a756e;
+  --input-bg: #141312;
+
+  --shadow-raised: 6px 6px 12px rgba(0, 0, 0, 0.35), -6px -6px 12px rgba(255, 255, 255, 0.03);
+  --shadow-raised-sm: 3px 3px 6px rgba(0, 0, 0, 0.3), -3px -3px 6px rgba(255, 255, 255, 0.02);
+  --shadow-inset: inset 3px 3px 6px rgba(0, 0, 0, 0.3), inset -3px -3px 6px rgba(255, 255, 255, 0.02);
+  --shadow-raised-hover: 4px 4px 8px rgba(0, 0, 0, 0.4), -4px -4px 8px rgba(255, 255, 255, 0.04);
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-border: var(--card-border);
+  --color-muted: var(--muted);
+  --color-accent: var(--accent);
+  --color-accent-hover: var(--accent-hover);
+  --color-accent-dim: var(--accent-dim);
+  --color-seafoam: var(--seafoam);
+  --color-seafoam-dim: var(--seafoam-dim);
+  --color-sunshine: var(--sunshine);
+  --color-sunshine-dim: var(--sunshine-dim);
+  --color-peach: var(--peach);
+  --color-peach-dim: var(--peach-dim);
+  --color-sidebar-bg: var(--sidebar-bg);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-positive: var(--positive);
+  --color-negative: var(--negative);
+  --color-mixed: var(--mixed);
+  --color-neutral: var(--neutral);
+  --color-input-bg: var(--input-bg);
+}
+
+body {
+  background-color: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-geist-sans), system-ui, sans-serif;
+}
+
+/* Neumorphic inputs — pressed in */
+input, textarea, select {
+  background-color: var(--input-bg);
+  border: none;
+  color: var(--foreground);
+  border-radius: 0.75rem;
+  padding: 0.625rem 0.875rem;
+  box-shadow: var(--shadow-inset);
+  transition: box-shadow 0.15s;
+}
+
+input:focus, textarea:focus, select:focus {
+  outline: none;
+  box-shadow: var(--shadow-inset), 0 0 0 2px color-mix(in srgb, var(--accent) 30%, transparent);
+}
+
+button {
+  cursor: pointer;
+}
+
+/* Neumorphic raised card */
+.soft-card {
+  background-color: var(--background);
+  border: none;
+  border-radius: 1rem;
+  box-shadow: var(--shadow-raised);
+}
+
+.soft-card:hover {
+  box-shadow: var(--shadow-raised-hover);
+}
+
+/* Neumorphic raised small */
+.neu-raised {
+  box-shadow: var(--shadow-raised-sm);
+  border-radius: 0.75rem;
+  background-color: var(--background);
+}
+
+/* Neumorphic inset (for containers that feel recessed) */
+.neu-inset {
+  box-shadow: var(--shadow-inset);
+  border-radius: 0.75rem;
+  background-color: var(--input-bg);
+}
+
+/* Neumorphic button */
+.neu-button {
+  background-color: var(--background);
+  border: none;
+  border-radius: 0.75rem;
+  box-shadow: var(--shadow-raised-sm);
+  padding: 0.5rem 1rem;
+  transition: box-shadow 0.15s, transform 0.1s;
+}
+
+.neu-button:hover {
+  box-shadow: var(--shadow-raised-hover);
+}
+
+.neu-button:active {
+  box-shadow: var(--shadow-inset);
+  transform: scale(0.98);
+}
+
+/* Primary button — raised with accent color */
+.neu-button-primary {
+  background: linear-gradient(135deg, var(--accent), var(--accent-hover));
+  color: white;
+  border: none;
+  border-radius: 0.75rem;
+  box-shadow: 4px 4px 10px rgba(0, 0, 0, 0.12), -2px -2px 6px rgba(255, 255, 255, 0.1);
+  padding: 0.625rem 1.25rem;
+  font-weight: 500;
+  transition: box-shadow 0.15s, transform 0.1s;
+}
+
+.neu-button-primary:hover {
+  box-shadow: 6px 6px 14px rgba(0, 0, 0, 0.15), -3px -3px 8px rgba(255, 255, 255, 0.12);
+}
+
+.neu-button-primary:active {
+  box-shadow: inset 2px 2px 4px rgba(0, 0, 0, 0.15);
+  transform: scale(0.98);
+}
+
+.neu-button-primary:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Custom checkbox — accent colored, fully override all input styles */
+input[type="checkbox"] {
+  appearance: none !important;
+  -webkit-appearance: none !important;
+  width: 1.125rem !important;
+  height: 1.125rem !important;
+  min-height: unset !important;
+  max-height: 1.125rem !important;
+  min-width: 1.125rem !important;
+  max-width: 1.125rem !important;
+  padding: 0 !important;
+  border-radius: 0.325rem !important;
+  box-shadow: var(--shadow-inset) !important;
+  background-color: var(--input-bg) !important;
+  cursor: pointer;
+  position: relative;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+input[type="checkbox"]:checked {
+  background: linear-gradient(135deg, var(--accent), var(--accent-hover)) !important;
+  box-shadow: var(--shadow-raised-sm) !important;
+}
+
+input[type="checkbox"]:checked::after {
+  content: "";
+  display: block;
+  width: 4px;
+  height: 8px;
+  border: solid white;
+  border-width: 0 1.5px 1.5px 0;
+  transform: rotate(45deg);
+  margin-top: -1px;
+}
+
+/* Custom select — taller, consistent */
+select {
+  min-height: 2.75rem;
+  padding-right: 2rem;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' fill='none'%3E%3Cpath d='M1 1.5L6 6.5L11 1.5' stroke='%238a857e' stroke-width='1.5' stroke-linecap='round'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 0.75rem center;
+  -webkit-appearance: none;
+  appearance: none;
+}
+
+/* Taller inputs across the board (exclude checkboxes) */
+input:not([type="checkbox"]):not([style*="boxShadow"]), textarea {
+  min-height: 2.75rem;
+}
+

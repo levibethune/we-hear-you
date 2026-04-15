@@ -1,0 +1,32 @@
+{
+  "name": "we-hear-you",
+  "version": "1.0.0",
+  "description": "Video-to-insight platform — capture, analyze, and classify qualitative feedback at scale.",
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "module",
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.79.0",
+    "@supabase/ssr": "^0.10.0",
+    "@supabase/supabase-js": "^2.99.2",
+    "@tailwindcss/postcss": "^4.2.2",
+    "@types/node": "^25.5.0",
+    "@types/react": "^19.2.14",
+    "@upstash/ratelimit": "^2.0.8",
+    "@upstash/redis": "^1.37.0",
+    "bcryptjs": "^3.0.3",
+    "next": "^16.2.1",
+    "posthog-js": "^1.364.6",
+    "react": "^19.2.4",
+    "react-dom": "^19.2.4",
+    "resend": "^6.10.0",
+    "tailwindcss": "^4.2.2",
+    "typescript": "^6.0.2"
+  }
+}
