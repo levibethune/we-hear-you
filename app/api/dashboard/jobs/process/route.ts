@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getServerClient } from "../../../../lib/supabase-server";
 import { verifyTenantAccess, unauthorized, forbidden } from "../../../../lib/dashboard-auth";
+import { evaluateFlows as evalFlowsFn } from "../../../../../lib/flows/evaluate.js";
 
 async function getAnalyzer() {
   const { analyzeTranscription } = await import("../../../../../lib/analyze.js");
@@ -8,8 +9,7 @@ async function getAnalyzer() {
 }
 
 async function getFlowEvaluator() {
-  const { evaluateFlows } = await import("../../../../../lib/flows/evaluate.js");
-  return evaluateFlows;
+  return evalFlowsFn;
 }
 
 async function getEncryptor() {
@@ -347,18 +347,28 @@ async function processReanalyzeBatch(
   }
 
   const analyzeTranscription = await getAnalyzer();
-
-  const { data: config } = await db
-    .from("analysis_configs")
-    .select("system_prompt, output_schema, model")
-    .eq("tenant_id", tenantId).eq("is_active", true).limit(1).single();
+  let evalFlows: Awaited<ReturnType<typeof getFlowEvaluator>> | null = null;
+  try {
+    evalFlows = await getFlowEvaluator();
+  } catch (err) {
+    console.error("Failed to load flow evaluator:", err);
+  }
 
   await Promise.allSettled(
     batch.map(async (respId) => {
       try {
         const { data: resp } = await db
-          .from("responses").select("id, transcription, person_id, source_type, source_form_name, campaign_id, created_at")
+          .from("responses").select("id, transcription, person_id, source_type, source_form_name, campaign_id, video_url, created_at")
           .eq("id", respId).eq("tenant_id", tenantId).single();
+
+        // Fetch the campaign-specific analysis config for this response
+        let configQuery = db.from("analysis_configs").select("system_prompt, output_schema, model").eq("is_active", true).limit(1);
+        if (resp?.campaign_id) {
+          configQuery = configQuery.eq("campaign_id", resp.campaign_id);
+        } else {
+          configQuery = configQuery.eq("tenant_id", tenantId);
+        }
+        const { data: config } = await configQuery.maybeSingle();
 
         if (!resp?.transcription) { progress.skipped++; return; }
 
@@ -377,8 +387,7 @@ async function processReanalyzeBatch(
         }
 
         // Fire matching flows after reanalysis
-        try {
-          const evalFlows = await getFlowEvaluator();
+        if (evalFlows) try {
           const { data: personData } = await db.from("people")
             .select("id, email, name, persona, latest_mood, latest_sentiment")
             .eq("id", resp.person_id).eq("tenant_id", tenantId).single();
@@ -391,6 +400,7 @@ async function processReanalyzeBatch(
             sentiment: analysis.sentiment as string,
             source_type: resp.source_type || null,
             source_form_name: resp.source_form_name || null,
+            video_url: resp.video_url || null,
             raw_analysis: analysis,
             created_at: resp.created_at || new Date().toISOString(),
           }, personData || {
@@ -401,7 +411,7 @@ async function processReanalyzeBatch(
             latest_mood: analysis.mood as string,
             latest_sentiment: analysis.sentiment as string,
           });
-        } catch { /* flow eval should not break reanalysis */ }
+        } catch (flowErr) { console.error("Flow eval failed for", resp.id, flowErr instanceof Error ? flowErr.message : flowErr); }
 
         progress.imported++;
       } catch {

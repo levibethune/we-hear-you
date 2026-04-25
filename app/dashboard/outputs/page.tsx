@@ -6,22 +6,22 @@ import { useAuthContext } from "../../components/AuthProvider";
 import { FlowCard } from "../../components/FlowCard";
 import { NotificationCard } from "../../components/NotificationCard";
 import { VideoFeedCard } from "../../components/VideoFeedCard";
+import { WebflowCard } from "../../components/WebflowCard";
 import { EmptyState } from "../../components/EmptyState";
 import { LoadingIndicator } from "../../components/LoadingIndicator";
 import type { Flow, VideoFeed } from "../../lib/types";
 
 export default function OutputsPage() {
-  const { tenant, activeCampaign } = useAuthContext();
+  const { tenant } = useAuthContext();
   const [flows, setFlows] = useState<Flow[]>([]);
   const [feeds, setFeeds] = useState<VideoFeed[]>([]);
   const [loading, setLoading] = useState(true);
 
   function fetchAll() {
     if (!tenant) return;
-    const cp = activeCampaign ? `&campaign_id=${activeCampaign.id}` : "";
     Promise.all([
-      fetch(`/api/dashboard/flows?tenant_id=${tenant.id}${cp}`).then((r) => r.json()),
-      fetch(`/api/dashboard/video-feeds?tenant_id=${tenant.id}${cp}`).then((r) => r.json()),
+      fetch(`/api/dashboard/flows?tenant_id=${tenant.id}`).then((r) => r.json()),
+      fetch(`/api/dashboard/video-feeds?tenant_id=${tenant.id}`).then((r) => r.json()),
     ]).then(([flowsData, feedsData]) => {
       setFlows(Array.isArray(flowsData) ? flowsData : []);
       setFeeds(Array.isArray(feedsData) ? feedsData : []);
@@ -74,7 +74,8 @@ export default function OutputsPage() {
   if (loading) return <LoadingIndicator />;
 
   const notifications = flows.filter((f) => f.category === "notification");
-  const customFlows = flows.filter((f) => f.category !== "notification");
+  const webflowOutputs = flows.filter((f) => f.category === "webflow");
+  const customFlows = flows.filter((f) => f.category !== "notification" && f.category !== "webflow");
 
   return (
     <div className="max-w-3xl">
@@ -146,6 +147,38 @@ export default function OutputsPage() {
           <div className="flex flex-col gap-2">
             {feeds.map((feed) => (
               <VideoFeedCard key={feed.id} feed={feed} onToggle={handleFeedToggle} onDelete={handleFeedDelete} />
+            ))}
+          </div>
+        )}
+      </section>
+
+      {/* Webflow section */}
+      <section className="mb-8">
+        <div className="flex items-center justify-between mb-3">
+          <h3 className="text-base font-semibold">Webflow CMS</h3>
+          <Link
+            href="/dashboard/outputs/webflow/create"
+            className="text-xs text-accent hover:underline"
+          >
+            + Add Webflow Output
+          </Link>
+        </div>
+        {webflowOutputs.length === 0 ? (
+          <div className="soft-card p-5 text-center">
+            <p className="text-sm text-muted mb-2">
+              Publish matching responses directly to your Webflow CMS as collection items — no Zapier or Make needed.
+            </p>
+            <Link
+              href="/dashboard/outputs/webflow/create"
+              className="text-xs text-accent hover:underline"
+            >
+              Connect Webflow
+            </Link>
+          </div>
+        ) : (
+          <div className="flex flex-col gap-2">
+            {webflowOutputs.map((flow) => (
+              <WebflowCard key={flow.id} flow={flow} onToggle={handleFlowToggle} onDelete={handleFlowDelete} />
             ))}
           </div>
         )}

@@ -4,9 +4,9 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useAuthContext } from "../components/AuthProvider";
 import { StatCard } from "../components/StatCard";
-import { SentimentBadge } from "../components/SentimentBadge";
 import { ResponseCard } from "../components/ResponseCard";
 import { EmptyState } from "../components/EmptyState";
+import { DashboardWidget } from "../components/DashboardWidget";
 import type { DashboardStats } from "../lib/types";
 import { LoadingIndicator } from "../components/LoadingIndicator";
 import { CampaignPicker } from "../components/CampaignPicker";
@@ -25,6 +25,10 @@ export default function OverviewPage() {
   useEffect(() => {
     if (!tenant) return;
     setLoading(true);
+    // Clear stale data when campaign changes
+    setInsight(null);
+    setInsightGeneratedAt(null);
+    setTopPersona(null);
     fetch(`/api/dashboard/stats?tenant_id=${tenant.id}${cp}`)
       .then((r) => r.json())
       .then((data) => {
@@ -63,19 +67,28 @@ export default function OverviewPage() {
   }, [tenant, stats]);
 
   if (loading) {
-    return (
-      <LoadingIndicator />
-    );
+    return <LoadingIndicator />;
   }
 
   if (!stats) {
     return <EmptyState message="Could not load dashboard data." />;
   }
 
-  const totalSentiment = Object.values(stats.sentimentBreakdown).reduce(
-    (a, b) => a + b,
-    0
-  );
+  // Build dynamic widget list from fieldStats
+  const fieldStats = stats.fieldStats ?? {};
+  const fieldDisplays = stats.fieldDisplays ?? {};
+
+  // Fields that have a chart display (not hidden, not "none")
+  const chartWidgets = Object.keys(fieldStats).filter((name) => {
+    const display = fieldDisplays[name];
+    return display && display !== "hidden" && display !== "none";
+  });
+
+  // Fields that show a "top" stat card
+  const topWidgets = Object.keys(fieldStats).filter((name) => {
+    if (fieldDisplays[name] === "hidden") return false;
+    return fieldDisplays[name + "__show_top"] === "true";
+  });
 
   return (
     <div>
@@ -88,37 +101,48 @@ export default function OverviewPage() {
         feel, what themes keep coming up, and what&apos;s been submitted recently.
       </p>
 
-      {/* Stat cards — People/Responses smaller, others wider */}
-      <div className="grid gap-3 mb-6" style={{ gridTemplateColumns: "1fr 1fr 2fr 2fr 2fr" }}>
+      {/* Stat cards row */}
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3 mb-6">
         <Link href="/dashboard/people" className="block">
           <StatCard label="People" value={stats.totalPeople} color="seafoam" />
         </Link>
         <Link href="/dashboard/responses" className="block">
           <StatCard label="Responses" value={stats.totalResponses} color="peach" />
         </Link>
-        <Link href="/dashboard/personas" className="block">
-          <StatCard
-            color="sunshine"
-            label="Top Persona"
-            value={topPersona?.name ?? "—"}
-          />
-        </Link>
-        <StatCard
-          label="Top Mood"
-          value={stats.recentResponses[0]?.mood ? stats.recentResponses[0].mood.charAt(0).toUpperCase() + stats.recentResponses[0].mood.slice(1) : "—"}
-        />
-        <StatCard
-          label="Avg Sentiment"
-          value={
-            totalSentiment > 0
-              ? (() => { const s = Object.entries(stats.sentimentBreakdown).sort(([, a], [, b]) => b - a)[0][0]; return s.charAt(0).toUpperCase() + s.slice(1); })()
-              : "—"
-          }
-        />
+        {topPersona && (
+          <Link href="/dashboard/personas" className="block">
+            <StatCard color="sunshine" label="Top Persona" value={topPersona.name} />
+          </Link>
+        )}
+        {topWidgets.map((name) => {
+          const stat = fieldStats[name];
+          if (!stat?.top) return null;
+          const fieldLabel = name.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
+          const value = typeof stat.top === "string" ? stat.top.charAt(0).toUpperCase() + stat.top.slice(1) : stat.top;
+          const isNumber = stat.type === "scalar";
+          const showAvg = fieldDisplays[name + "__show_average"] === "true" && isNumber;
+          return (
+            <div key={name}>
+              <StatCard label={`Top ${fieldLabel}`} value={value} />
+            </div>
+          );
+        })}
+        {/* Average cards for number fields */}
+        {Object.keys(fieldStats).filter((name) =>
+          fieldDisplays[name + "__show_average"] === "true" && fieldStats[name]?.type === "scalar"
+        ).map((name) => {
+          const stat = fieldStats[name];
+          const fieldLabel = name.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
+          return (
+            <div key={`avg_${name}`}>
+              <StatCard label={`Avg ${fieldLabel}`} value={stat?.top ?? "—"} />
+            </div>
+          );
+        })}
       </div>
 
       <div className="grid lg:grid-cols-2 gap-6">
-        {/* Left column: Audience Insights + Sentiment */}
+        {/* Left column: Audience Insights + dynamic chart widgets */}
         <div className="flex flex-col gap-6">
           {/* Audience Insights */}
           {(insight || insightLoading) && (
@@ -169,69 +193,13 @@ export default function OverviewPage() {
             </div>
           )}
 
-          {/* Sentiment breakdown */}
-        <div className="soft-card p-5">
-          <h3 className="text-base font-semibold mb-3">
-            Sentiment Breakdown
-          </h3>
-          {totalSentiment === 0 ? (
-            <p className="text-sm text-muted">No responses yet.</p>
-          ) : (
-            <div className="flex flex-col gap-2">
-              {(
-                ["positive", "negative", "mixed", "neutral"] as const
-              ).map((s) => {
-                const count = stats.sentimentBreakdown[s] ?? 0;
-                const pct =
-                  totalSentiment > 0
-                    ? Math.round((count / totalSentiment) * 100)
-                    : 0;
-                return (
-                  <div key={s} className="flex items-center gap-3">
-                    <SentimentBadge sentiment={s} />
-                    <div className="flex-1 h-2 rounded-full bg-card-border overflow-hidden">
-                      <div
-                        className={`h-full rounded-full ${
-                          s === "positive"
-                            ? "bg-positive"
-                            : s === "negative"
-                            ? "bg-negative"
-                            : s === "mixed"
-                            ? "bg-mixed"
-                            : "bg-neutral"
-                        }`}
-                        style={{ width: `${pct}%` }}
-                      />
-                    </div>
-                    <span className="text-xs text-muted w-8 text-right">
-                      {pct}%
-                    </span>
-                  </div>
-                );
-              })}
-            </div>
-          )}
-
-          {/* Top themes */}
-          <h3 className="text-sm font-medium text-muted mt-6 mb-3">
-            Top Themes
-          </h3>
-          {stats.topThemes.length === 0 ? (
-            <p className="text-sm text-muted">No themes yet.</p>
-          ) : (
-            <div className="flex flex-col gap-1">
-              {stats.topThemes.map(({ theme, count }) => (
-                <div
-                  key={theme}
-                  className="flex items-center justify-between text-sm py-1"
-                >
-                  <span>{theme}</span>
-                  <span className="text-muted text-xs">{count}</span>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
+          {/* Dynamic chart widgets */}
+          {chartWidgets.map((name) => {
+            const stat = fieldStats[name];
+            const display = fieldDisplays[name] as "bar" | "pie" | "list";
+            if (!stat) return null;
+            return <DashboardWidget key={name} fieldName={name} display={display} stat={stat} />;
+          })}
         </div>
 
         {/* Right column: Recent responses */}

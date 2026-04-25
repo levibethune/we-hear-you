@@ -10,7 +10,7 @@ import { LoadingIndicator } from "../../../components/LoadingIndicator";
 import type { Flow } from "../../../lib/types";
 
 export default function FlowDetailPage() {
-  const { tenant } = useAuthContext();
+  const { tenant, campaigns } = useAuthContext();
   const { id } = useParams();
   const router = useRouter();
   const [flow, setFlow] = useState<Flow | null>(null);
@@ -176,6 +176,7 @@ export default function FlowDetailPage() {
           conditions={flow.conditions}
           conditionLogic={flow.condition_logic}
           webhookUrl={webhookUrl}
+          campaignNames={Object.fromEntries(campaigns.map((c) => [c.id, c.name]))}
         />
 
         <div className="mt-4 pt-3 border-t border-card-border flex flex-wrap gap-4 text-xs text-muted">

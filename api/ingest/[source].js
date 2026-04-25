@@ -157,13 +157,15 @@ export default async function handler(req, res) {
 
     // 14. Evaluate flows (fire matching webhooks)
     await evaluateFlows(tenantId, campaignId, "response_created", {
-      id: person.id, // Will be overwritten if we get response ID
+      id: person.id,
+      campaign_id: campaignId,
       transcription: cleanTranscription,
       themes: analysis.themes || [],
       mood: analysis.mood,
       sentiment: analysis.sentiment,
       source_type: sourceType,
-      source_form_name: null,
+      source_form_name: data.sourceFormName || null,
+      video_url: data.mediaUrl || null,
       raw_analysis: analysis,
       created_at: new Date().toISOString(),
     }, {

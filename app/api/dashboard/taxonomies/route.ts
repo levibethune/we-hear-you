@@ -9,20 +9,35 @@ export async function GET(request: NextRequest) {
   if (!auth) return tenantId ? forbidden() : unauthorized();
 
   const db = getServerClient();
-  let query = db
-    .from("taxonomies")
-    .select("id, name, buckets, created_at")
-    .eq("name", "Personas");
 
   if (campaignId) {
-    query = query.eq("campaign_id", campaignId);
-  } else {
-    query = query.eq("tenant_id", tenantId);
+    // Specific campaign — return its taxonomy
+    const { data } = await db
+      .from("taxonomies")
+      .select("id, name, buckets, created_at")
+      .eq("name", "Personas")
+      .eq("campaign_id", campaignId)
+      .maybeSingle();
+    return NextResponse.json(data ?? { buckets: [] });
   }
 
-  const { data } = await query.maybeSingle();
+  // All Campaigns — aggregate buckets across all campaigns' taxonomies
+  const { data: all } = await db
+    .from("taxonomies")
+    .select("buckets")
+    .eq("name", "Personas")
+    .eq("tenant_id", tenantId);
 
-  return NextResponse.json(data ?? { buckets: [] });
+  const seen = new Set<string>();
+  const buckets: unknown[] = [];
+  for (const t of all ?? []) {
+    for (const b of (t.buckets || []) as { name: string }[]) {
+      if (!b?.name || seen.has(b.name)) continue;
+      seen.add(b.name);
+      buckets.push(b);
+    }
+  }
+  return NextResponse.json({ buckets });
 }
 
 export async function PUT(request: NextRequest) {

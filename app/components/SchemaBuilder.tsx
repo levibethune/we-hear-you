@@ -1,10 +1,18 @@
 "use client";
 
 import { useRef, useCallback } from "react";
-import { SchemaFieldRow, type SchemaField, type FieldType } from "./SchemaFieldRow";
+import { SchemaFieldRow, type SchemaField, type FieldType, type DashboardDisplay } from "./SchemaFieldRow";
 import type { OutputSchema, SchemaProperty } from "../lib/types";
 
 let fieldCounter = 0;
+const defaultDisplay: Record<FieldType, DashboardDisplay> = {
+  text: "none",
+  text_list: "list",
+  single_choice: "bar",
+  number: "none",
+  boolean: "bar",
+};
+
 function newField(): SchemaField {
   fieldCounter++;
   return {
@@ -14,6 +22,9 @@ function newField(): SchemaField {
     description: "",
     options: [],
     required: true,
+    dashboardDisplay: "bar",
+    showTop: true,
+    showAverage: false,
   };
 }
 
@@ -39,6 +50,11 @@ export function fieldsToSchema(fields: SchemaField[]): OutputSchema {
       prop.type = "boolean";
     }
 
+    if (f.dashboardDisplay) {
+      prop.dashboard_display = f.dashboardDisplay;
+    }
+    if (f.showTop) (prop as Record<string, unknown>).dashboard_show_top = true;
+    if (f.showAverage) (prop as Record<string, unknown>).dashboard_show_average = true;
     properties[f.name] = prop;
     if (f.required) required.push(f.name);
   }
@@ -65,6 +81,8 @@ export function schemaToFields(schema: OutputSchema): SchemaField[] {
     }
 
     fieldCounter++;
+    const dd = prop.dashboard_display as DashboardDisplay | undefined;
+    const propAny = prop as Record<string, unknown>;
     return {
       id: `field_${fieldCounter}_${Date.now()}`,
       name,
@@ -72,6 +90,9 @@ export function schemaToFields(schema: OutputSchema): SchemaField[] {
       description: prop.description ?? "",
       options,
       required: schema.required?.includes(name) ?? false,
+      dashboardDisplay: dd ?? defaultDisplay[type] ?? "bar",
+      showTop: propAny.dashboard_show_top === true,
+      showAverage: propAny.dashboard_show_average === true,
     };
   });
 }

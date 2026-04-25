@@ -5,12 +5,14 @@ import { useAuthContext } from "../../../components/AuthProvider";
 import { Modal } from "../../../components/Modal";
 import { EmptyState } from "../../../components/EmptyState";
 import { LoadingIndicator } from "../../../components/LoadingIndicator";
+import { SetupWizard } from "../../../components/SetupWizard";
 import type { Campaign } from "../../../lib/types";
 
 export default function CampaignsSettingsPage() {
   const { tenant, refreshCampaigns } = useAuthContext();
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
   const [loading, setLoading] = useState(true);
+  const [wizardOpen, setWizardOpen] = useState(false);
   const [createOpen, setCreateOpen] = useState(false);
   const [newName, setNewName] = useState("");
   const [newDescription, setNewDescription] = useState("");
@@ -180,12 +182,29 @@ export default function CampaignsSettingsPage() {
           </p>
         </div>
         <button
-          onClick={() => setCreateOpen(true)}
+          onClick={() => setWizardOpen(true)}
           className="bg-accent text-white rounded-xl px-4 py-2.5 text-sm font-medium hover:bg-accent-hover transition-all shadow-[0_2px_8px_rgba(244,160,122,0.25)] shrink-0"
         >
           New Campaign
         </button>
       </div>
+
+      {wizardOpen && (
+        <div className="mb-8 soft-card p-6">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-base font-semibold">New Campaign Setup</h3>
+            <button onClick={() => setWizardOpen(false)} className="text-xs text-muted hover:text-foreground">Cancel</button>
+          </div>
+          <SetupWizard
+            mode="campaign"
+            existingFormNames={availableFormNames}
+            onComplete={() => {
+              setWizardOpen(false);
+              fetchCampaigns();
+            }}
+          />
+        </div>
+      )}
 
       {activeCampaigns.length === 0 ? (
         <EmptyState message="No campaigns yet." />

@@ -10,21 +10,17 @@ import { BulkActionBar } from "../../components/BulkActionBar";
 import { useDebounce } from "../../hooks/useDebounce";
 import { CampaignPicker } from "../../components/CampaignPicker";
 import { LoadingIndicator } from "../../components/LoadingIndicator";
-import { usePersonaOptions } from "../../hooks/usePersonaOptions";
+import { useCustomAnalysisFields } from "../../hooks/useCustomAnalysisFields";
 import type { Response } from "../../lib/types";
 
 export default function ResponsesPage() {
-  const { tenant, activeCampaign } = useAuthContext();
-  const personaOptions = usePersonaOptions(tenant);
+  const { tenant, activeCampaign, campaigns } = useAuthContext();
   const [responses, setResponses] = useState<Response[]>([]);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
-  const [sentiment, setSentiment] = useState("");
-  const [mood, setMood] = useState("");
-  const [personaFilter, setPersonaFilter] = useState("");
   const [source, setSource] = useState("");
   const [sort, setSort] = useState("newest");
   const [form, setForm] = useState("");
@@ -33,7 +29,12 @@ export default function ResponsesPage() {
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const debouncedSearch = useDebounce(search, 300);
 
-  // Fetch available form names for filter
+  // Analysis field filters — all from schema
+  const analysisFields = useCustomAnalysisFields(tenant, activeCampaign?.id ?? null, campaigns);
+  const customFields = analysisFields.filter((f) => f.options && f.options.length > 0);
+  const [customFilters, setCustomFilters] = useState<Record<string, string>>({});
+
+  // Fetch available form names
   useEffect(() => {
     if (!tenant) return;
     const cp = activeCampaign ? `&campaign_id=${activeCampaign.id}` : "";
@@ -47,7 +48,7 @@ export default function ResponsesPage() {
         setFormOptions(Array.from(names).sort());
       })
       .catch(() => {});
-  }, [tenant]);
+  }, [tenant, activeCampaign]);
 
   const fetchResponses = useCallback(() => {
     if (!tenant) return;
@@ -59,11 +60,11 @@ export default function ResponsesPage() {
     });
     if (activeCampaign) params.set("campaign_id", activeCampaign.id);
     if (debouncedSearch) params.set("search", debouncedSearch);
-    if (sentiment) params.set("sentiment", sentiment);
-    if (mood) params.set("mood", mood);
-    if (personaFilter) params.set("persona", personaFilter);
     if (source) params.set("source", source);
     if (form) params.set("form", form);
+    for (const [key, val] of Object.entries(customFilters)) {
+      if (val) params.set(`custom_${key}`, val);
+    }
     if (showHidden) params.set("show_hidden", "true");
 
     fetch(`/api/dashboard/responses?${params}`)
@@ -75,7 +76,7 @@ export default function ResponsesPage() {
         setLoading(false);
       })
       .catch(() => setLoading(false));
-  }, [tenant, page, debouncedSearch, sentiment, mood, personaFilter, source, form, sort, showHidden]);
+  }, [tenant, page, debouncedSearch, source, form, sort, showHidden, customFilters]);
 
   useEffect(() => { fetchResponses(); }, [fetchResponses]);
 
@@ -132,28 +133,20 @@ export default function ResponsesPage() {
         )}
       </div>
 
-      {/* Row 2: Sentiment, Mood, Persona, Sort */}
+      {/* Row 2: Analysis field filters (all from schema) + Sort */}
       <div className="flex flex-wrap items-center gap-3 mb-6">
-        <select value={sentiment} onChange={(e) => { setSentiment(e.target.value); setPage(1); }} className="text-sm">
-          <option value="">Sentiment</option>
-          <option value="positive">Positive</option>
-          <option value="negative">Negative</option>
-          <option value="mixed">Mixed</option>
-          <option value="neutral">Neutral</option>
-        </select>
-        <select value={mood} onChange={(e) => { setMood(e.target.value); setPage(1); }} className="text-sm">
-          <option value="">Mood</option>
-          <option value="hopeful">Hopeful</option>
-          <option value="frustrated">Frustrated</option>
-          <option value="enthusiastic">Enthusiastic</option>
-          <option value="uncertain">Uncertain</option>
-          <option value="restless">Restless</option>
-          <option value="curious">Curious</option>
-        </select>
-        <select value={personaFilter} onChange={(e) => { setPersonaFilter(e.target.value); setPage(1); }} className="text-sm">
-          <option value="">Persona</option>
-          {personaOptions.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
-        </select>
+        {/* All analysis field filters — dynamically from schema */}
+        {customFields.map((cf) => (
+          <select
+            key={cf.key}
+            value={customFilters[cf.key] || ""}
+            onChange={(e) => { setCustomFilters({ ...customFilters, [cf.key]: e.target.value }); setPage(1); }}
+            className="text-sm"
+          >
+            <option value="">{cf.label}</option>
+            {(cf.options ?? []).map((o) => <option key={o} value={o}>{o.charAt(0).toUpperCase() + o.slice(1)}</option>)}
+          </select>
+        ))}
         <select value={sort} onChange={(e) => { setSort(e.target.value); setPage(1); }} className="text-sm">
           <option value="newest">Newest first</option>
           <option value="oldest">Oldest first</option>

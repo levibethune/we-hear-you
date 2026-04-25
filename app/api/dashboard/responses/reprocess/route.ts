@@ -47,14 +47,20 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Response not found" }, { status: 404 });
   }
 
-  // Get analysis config
-  const { data: config } = await db
-    .from("analysis_configs")
-    .select("system_prompt, output_schema, model")
-    .eq("tenant_id", tenant_id)
-    .eq("is_active", true)
-    .limit(1)
+  // Get analysis config — use campaign-specific config if response has a campaign
+  const { data: respMeta } = await db
+    .from("responses")
+    .select("campaign_id")
+    .eq("id", response_id)
     .single();
+
+  let configQuery = db.from("analysis_configs").select("system_prompt, output_schema, model").eq("is_active", true).limit(1);
+  if (respMeta?.campaign_id) {
+    configQuery = configQuery.eq("campaign_id", respMeta.campaign_id);
+  } else {
+    configQuery = configQuery.eq("tenant_id", tenant_id);
+  }
+  const { data: config } = await configQuery.maybeSingle();
 
   const analyzeTranscription = await getAnalyzer();
   const encrypt = await getEncryptor();
@@ -99,7 +105,7 @@ export async function POST(request: NextRequest) {
       // We need source_form_name which we don't have yet — one lightweight query
       const { data: meta } = await db
         .from("responses")
-        .select("source_type, source_form_name, campaign_id, created_at")
+        .select("source_type, source_form_name, campaign_id, video_url, created_at")
         .eq("id", response_id)
         .single();
 
@@ -118,6 +124,7 @@ export async function POST(request: NextRequest) {
         sentiment: analysis.sentiment as string,
         source_type: meta?.source_type || null,
         source_form_name: meta?.source_form_name || null,
+        video_url: meta?.video_url || null,
         raw_analysis: analysis,
         created_at: meta?.created_at || new Date().toISOString(),
       }, personData || {

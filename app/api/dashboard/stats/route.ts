@@ -80,11 +80,88 @@ export async function GET(request: NextRequest) {
     .slice(0, 10)
     .map(([theme, count]) => ({ theme, count }));
 
+  // Compute fieldStats from raw_analysis based on the active analysis config
+  const fieldStats: Record<string, { type: string; counts?: Record<string, number>; items?: { value: string; count: number }[]; top?: string | number }> = {};
+  const fieldDisplays: Record<string, string> = {};
+
+  // Fetch the analysis config to know field shapes
+  let configQuery = db.from("analysis_configs").select("output_schema").eq("is_active", true).limit(1);
+  if (campaignId) {
+    configQuery = configQuery.eq("campaign_id", campaignId);
+  } else {
+    configQuery = configQuery.eq("tenant_id", tenantId);
+  }
+  const { data: configData } = await configQuery.maybeSingle();
+
+  if (configData?.output_schema?.properties) {
+    const schema = configData.output_schema;
+    // Fetch raw_analysis from recent responses for aggregation
+    let rawQuery = db.from("responses").select("raw_analysis").eq("tenant_id", tenantId).or("is_hidden.is.null,is_hidden.eq.false").limit(500);
+    if (campaignId) rawQuery = rawQuery.eq("campaign_id", campaignId);
+    const { data: rawRows } = await rawQuery;
+    const analyses = (rawRows ?? []).map((r: { raw_analysis: Record<string, unknown> }) => r.raw_analysis).filter(Boolean);
+
+    for (const [fieldName, prop] of Object.entries(schema.properties) as [string, Record<string, unknown>][]) {
+      // Skip the safety field (internal)
+      if (fieldName === "safety") continue;
+
+      const display = (prop.dashboard_display as string) || undefined;
+      if (display) fieldDisplays[fieldName] = display;
+      if ((prop as Record<string, unknown>).dashboard_show_top) fieldDisplays[fieldName + "__show_top"] = "true";
+      if ((prop as Record<string, unknown>).dashboard_show_average) fieldDisplays[fieldName + "__show_average"] = "true";
+      if (display === "hidden") continue;
+
+      if (prop.enum || (prop.type === "string" && !prop.items)) {
+        // Enum or plain string → count values
+        const counts: Record<string, number> = {};
+        for (const a of analyses) {
+          const val = a[fieldName];
+          if (val && typeof val === "string") {
+            counts[val] = (counts[val] || 0) + 1;
+          }
+        }
+        const top = Object.entries(counts).sort(([, a], [, b]) => b - a)[0];
+        fieldStats[fieldName] = { type: "enum", counts, top: top?.[0] };
+      } else if (prop.type === "array") {
+        // Array → flatten and count
+        const counts: Record<string, number> = {};
+        for (const a of analyses) {
+          const arr = a[fieldName];
+          if (Array.isArray(arr)) {
+            for (const v of arr) {
+              if (typeof v === "string") counts[v] = (counts[v] || 0) + 1;
+            }
+          }
+        }
+        const items = Object.entries(counts).sort(([, a], [, b]) => b - a).slice(0, 15).map(([value, count]) => ({ value, count }));
+        fieldStats[fieldName] = { type: "array", items, top: items[0]?.value };
+      } else if (prop.type === "number") {
+        // Number → average
+        let sum = 0, count = 0;
+        for (const a of analyses) {
+          const val = a[fieldName];
+          if (typeof val === "number") { sum += val; count++; }
+        }
+        fieldStats[fieldName] = { type: "scalar", top: count > 0 ? Math.round(sum / count * 10) / 10 : 0 };
+      } else if (prop.type === "boolean") {
+        // Boolean → count true/false
+        const counts: Record<string, number> = { "true": 0, "false": 0 };
+        for (const a of analyses) {
+          const val = a[fieldName];
+          if (typeof val === "boolean") counts[String(val)]++;
+        }
+        fieldStats[fieldName] = { type: "enum", counts, top: counts["true"] >= counts["false"] ? "Yes" : "No" };
+      }
+    }
+  }
+
   return NextResponse.json({
     totalPeople,
     totalResponses: responsesCount.count ?? 0,
     sentimentBreakdown,
     topThemes,
     recentResponses: recentData.data ?? [],
+    fieldStats,
+    fieldDisplays,
   });
 }

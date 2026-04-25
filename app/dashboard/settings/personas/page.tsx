@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef, useCallback } from "react";
 import Link from "next/link";
 import { useAuthContext } from "../../../components/AuthProvider";
 import { PersonaEditor } from "../../../components/PersonaEditor";
@@ -38,6 +38,8 @@ export default function PersonasPage() {
   const [suggestions, setSuggestions] = useState<SuggestionResult | null>(null);
   const [suggestError, setSuggestError] = useState<string | null>(null);
 
+  const initialLoadDone = useRef(false);
+
   useEffect(() => {
     if (!tenant) return;
     fetch(`/api/dashboard/taxonomies?tenant_id=${tenant.id}${activeCampaign ? `&campaign_id=${activeCampaign.id}` : ""}`)
@@ -45,9 +47,31 @@ export default function PersonasPage() {
       .then((data) => {
         setPersonas(data.buckets ?? []);
         setLoading(false);
+        setTimeout(() => { initialLoadDone.current = true; }, 100);
       })
       .catch(() => setLoading(false));
   }, [tenant]);
+
+  // Auto-save with debounce
+  const autoSave = useCallback(async () => {
+    if (!tenant || !activeCampaign || !initialLoadDone.current) return;
+    setSaving(true);
+    await fetch("/api/dashboard/taxonomies", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ tenant_id: tenant.id, campaign_id: activeCampaign.id, buckets: personas }),
+    });
+    setSaving(false);
+    setSaved(true);
+    track("personas_saved", { count: personas.length, names: personas.map(p => p.name) });
+    setTimeout(() => setSaved(false), 2000);
+  }, [tenant, activeCampaign, personas]);
+
+  useEffect(() => {
+    if (!initialLoadDone.current) return;
+    const timer = setTimeout(autoSave, 1500);
+    return () => clearTimeout(timer);
+  }, [personas, autoSave]);
 
   async function handleSave() {
     if (!tenant) return;
@@ -238,9 +262,15 @@ export default function PersonasPage() {
   return (
     <div className="max-w-2xl">
       <OrgBanner />
-      <div className="flex items-center gap-3 mb-1">
-        <h2 className="text-lg font-bold">Personas</h2>
-        <CampaignPicker />
+      <div className="flex items-center justify-between mb-1">
+        <div className="flex items-center gap-3">
+          <h2 className="text-lg font-bold">Personas</h2>
+          <CampaignPicker />
+        </div>
+        <div className="flex items-center gap-2">
+          {saving && <span className="text-[10px] text-muted animate-pulse">Saving...</span>}
+          {saved && !saving && <span className="text-[10px] text-seafoam">Saved</span>}
+        </div>
       </div>
       <p className="text-sm text-muted mb-6">
         Personas are the categories you want to sort people into based on what they
@@ -440,17 +470,6 @@ export default function PersonasPage() {
 
       {/* Manual editor */}
       <PersonaEditor personas={personas} onChange={setPersonas} />
-
-      <div className="flex items-center gap-3 mt-6">
-        <button
-          onClick={handleSave}
-          disabled={saving}
-          className="bg-accent text-white rounded-xl px-4 py-2.5 text-sm font-medium hover:bg-accent-hover transition-all shadow-[0_2px_8px_rgba(244,160,122,0.25)] disabled:opacity-50"
-        >
-          {saving ? "Saving..." : "Save Personas"}
-        </button>
-        {saved && <span className="text-sm text-seafoam">Saved</span>}
-      </div>
 
       <div className="mt-8 pt-6 border-t border-card-border">
         <h4 className="text-sm font-medium mb-2">Re-analyze Existing Responses</h4>

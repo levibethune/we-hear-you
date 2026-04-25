@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAuthContext } from "./AuthProvider";
 import { ConditionBuilder } from "./ConditionBuilder";
+import { useCustomAnalysisFields } from "../hooks/useCustomAnalysisFields";
 import type { Flow, FlowCondition } from "../lib/types";
 
 type Channel = "slack" | "in_app" | "email_digest";
@@ -40,6 +41,12 @@ export function NotificationForm({ existingFlow }: { existingFlow?: Flow }) {
   const initialConfig = (existingFlow?.action_config || {}) as Record<string, unknown>;
   const [slackUrl, setSlackUrl] = useState((initialConfig.webhook_url as string) ?? "");
   const [campaignScope, setCampaignScope] = useState<string | null>(existingFlow?.campaign_id ?? activeCampaign?.id ?? null);
+  const existingSafety = (initialConfig.safety_required as Record<string, boolean>) || {};
+  const [safetyRequired, setSafetyRequired] = useState({
+    no_pii: existingSafety.no_pii ?? false,
+    no_profanity: existingSafety.no_profanity ?? false,
+    no_hate_speech: existingSafety.no_hate_speech ?? false,
+  });
   const [emailRecipients, setEmailRecipients] = useState(
     Array.isArray(initialConfig.recipients) ? (initialConfig.recipients as string[]).join(", ") : ""
   );
@@ -49,6 +56,7 @@ export function NotificationForm({ existingFlow }: { existingFlow?: Flow }) {
 
   const [personas, setPersonas] = useState<string[]>([]);
   const [forms, setForms] = useState<string[]>([]);
+  const customFields = useCustomAnalysisFields(tenant, campaignScope, campaigns);
 
   useEffect(() => {
     if (!tenant) return;
@@ -70,11 +78,12 @@ export function NotificationForm({ existingFlow }: { existingFlow?: Flow }) {
   }, [tenant]);
 
   function buildConfig() {
-    if (channel === "slack") return { webhook_url: slackUrl.trim() };
+    const safety = { safety_required: safetyRequired };
+    if (channel === "slack") return { webhook_url: slackUrl.trim(), ...safety };
     if (channel === "email_digest") {
-      return { recipients: emailRecipients.split(",").map((s) => s.trim()).filter(Boolean) };
+      return { recipients: emailRecipients.split(",").map((s) => s.trim()).filter(Boolean), ...safety };
     }
-    return {};
+    return safety;
   }
 
   async function handleSave() {
@@ -250,9 +259,29 @@ export function NotificationForm({ existingFlow }: { existingFlow?: Flow }) {
             personas={personas}
             forms={forms}
             campaigns={campaigns}
+            customFields={customFields}
             onChange={setConditions}
             onLogicChange={setConditionLogic}
           />
+        </div>
+      </div>
+
+      {/* Safety filters */}
+      <div className="mb-6">
+        <label className="text-xs text-muted uppercase tracking-wider block mb-1.5">Safety filters</label>
+        <div className="soft-card p-4 flex flex-col gap-2">
+          <label className="flex items-center gap-2 text-sm cursor-pointer">
+            <input type="checkbox" checked={safetyRequired.no_pii} onChange={() => setSafetyRequired({ ...safetyRequired, no_pii: !safetyRequired.no_pii })} />
+            Skip responses containing personal information (PII)
+          </label>
+          <label className="flex items-center gap-2 text-sm cursor-pointer">
+            <input type="checkbox" checked={safetyRequired.no_profanity} onChange={() => setSafetyRequired({ ...safetyRequired, no_profanity: !safetyRequired.no_profanity })} />
+            Skip responses with profanity
+          </label>
+          <label className="flex items-center gap-2 text-sm cursor-pointer">
+            <input type="checkbox" checked={safetyRequired.no_hate_speech} onChange={() => setSafetyRequired({ ...safetyRequired, no_hate_speech: !safetyRequired.no_hate_speech })} />
+            Skip responses with hate speech or harassment
+          </label>
         </div>
       </div>
 

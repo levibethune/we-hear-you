@@ -1,7 +1,7 @@
 "use client";
 
 import type { FlowCondition } from "../lib/types";
-import { ConditionRow } from "./ConditionRow";
+import { ConditionRow, type CustomField } from "./ConditionRow";
 
 export function ConditionBuilder({
   conditions,
@@ -9,6 +9,7 @@ export function ConditionBuilder({
   personas,
   forms,
   campaigns,
+  customFields,
   onChange,
   onLogicChange,
 }: {
@@ -17,6 +18,7 @@ export function ConditionBuilder({
   personas: string[];
   forms: string[];
   campaigns?: { id: string; name: string }[];
+  customFields?: CustomField[];
   onChange: (conditions: FlowCondition[]) => void;
   onLogicChange: (logic: "all" | "any") => void;
 }) {
@@ -70,6 +72,7 @@ export function ConditionBuilder({
             personas={personas}
             forms={forms}
             campaigns={campaigns}
+            customFields={customFields}
             onChange={(updated) => updateCondition(i, updated)}
             onRemove={() => removeCondition(i)}
           />

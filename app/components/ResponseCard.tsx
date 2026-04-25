@@ -87,21 +87,30 @@ export function ResponseCard({
             )}
           </p>
 
-          <div className="flex flex-wrap items-center gap-1.5">
-            {response.mood && (
-              <span className="text-xs text-muted">{response.mood}</span>
-            )}
-            <SentimentBadge sentiment={response.sentiment} />
-            <PersonaTag persona={persona} />
+          <div className="flex flex-col gap-2.5 mt-2">
+            {/* All analysis fields rendered uniformly from raw_analysis */}
+            {response.raw_analysis && Object.entries(response.raw_analysis as Record<string, unknown>)
+              .filter(([k, v]) => k !== "safety" && v != null)
+              .map(([key, val]) => (
+                <div key={key}>
+                  <p className="text-[9px] text-muted/50 uppercase tracking-wider mb-0.5">{key.replace(/_/g, " ")}</p>
+                  {key === "persona" ? (
+                    <PersonaTag persona={String(val)} />
+                  ) : key === "sentiment" ? (
+                    <SentimentBadge sentiment={String(val)} />
+                  ) : Array.isArray(val) ? (
+                    <div className="flex flex-wrap gap-1.5">
+                      {val.map((v, i) => (
+                        <ThemeTag key={i} theme={String(v)} />
+                      ))}
+                    </div>
+                  ) : (
+                    <span className="text-xs bg-muted/10 text-foreground px-2.5 py-1 rounded-full">{String(val)}</span>
+                  )}
+                </div>
+              ))
+            }
           </div>
-
-          {response.themes && response.themes.length > 0 && (
-            <div className="flex flex-wrap gap-1.5 mt-3">
-              {response.themes.map((t) => (
-                <ThemeTag key={t} theme={t} />
-              ))}
-            </div>
-          )}
         </div>
 
         {/* Right: transcription + video */}
@@ -183,6 +192,17 @@ export function ResponseCard({
             >
               <span className="text-[10px]">{"\u25B6"}</span>
               {showVideo ? "Hide video" : "Play video"}
+            </button>
+          )}
+          {hasVideo && (
+            <button
+              onClick={() => {
+                const code = `<iframe src="https://app.wehearyou.io/embed/response/${response.id}" width="100%" height="400" frameborder="0" allowfullscreen></iframe>`;
+                navigator.clipboard.writeText(code);
+              }}
+              className="text-xs text-muted hover:text-foreground transition-colors"
+            >
+              Copy embed
             </button>
           )}
           {response.share_url && (

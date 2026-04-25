@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAuthContext } from "./AuthProvider";
 import { ConditionBuilder } from "./ConditionBuilder";
+import { useCustomAnalysisFields } from "../hooks/useCustomAnalysisFields";
 import { FlowPreview } from "./FlowPreview";
 import type { Flow, FlowCondition } from "../lib/types";
 
@@ -69,6 +70,12 @@ export function FlowForm({ existingFlow }: { existingFlow?: Flow }) {
   const [conditionLogic, setConditionLogic] = useState<"all" | "any">(existingFlow?.condition_logic ?? "all");
   const [webhookUrl, setWebhookUrl] = useState((existingFlow?.action_config as { url?: string })?.url ?? "");
   const [campaignScope, setCampaignScope] = useState<string | null>(existingFlow?.campaign_id ?? activeCampaign?.id ?? null);
+  const existingConfig = (existingFlow?.action_config || {}) as Record<string, unknown>;
+  const [safetyRequired, setSafetyRequired] = useState({
+    no_pii: (existingConfig.safety_required as Record<string, boolean>)?.no_pii ?? false,
+    no_profanity: (existingConfig.safety_required as Record<string, boolean>)?.no_profanity ?? false,
+    no_hate_speech: (existingConfig.safety_required as Record<string, boolean>)?.no_hate_speech ?? false,
+  });
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [testResult, setTestResult] = useState<{ success: boolean; status?: number; error?: string } | null>(null);
@@ -77,6 +84,7 @@ export function FlowForm({ existingFlow }: { existingFlow?: Flow }) {
   // Load personas and forms for condition dropdowns
   const [personas, setPersonas] = useState<string[]>([]);
   const [forms, setForms] = useState<string[]>([]);
+  const customFields = useCustomAnalysisFields(tenant, campaignScope, campaigns);
 
   useEffect(() => {
     if (!tenant) return;
@@ -130,7 +138,7 @@ export function FlowForm({ existingFlow }: { existingFlow?: Flow }) {
         trigger_on: triggerOn,
         conditions: cleanConditions,
         condition_logic: conditionLogic,
-        action_config: { url: webhookUrl.trim() },
+        action_config: { url: webhookUrl.trim(), safety_required: safetyRequired },
       }),
     });
 
@@ -241,6 +249,7 @@ export function FlowForm({ existingFlow }: { existingFlow?: Flow }) {
             personas={personas}
             forms={forms}
             campaigns={campaigns}
+            customFields={customFields}
             onChange={setConditions}
             onLogicChange={setConditionLogic}
           />
@@ -254,6 +263,14 @@ export function FlowForm({ existingFlow }: { existingFlow?: Flow }) {
           <p className="text-xs text-muted mb-2">
             Paste your Zapier or Make webhook URL. We&apos;ll POST matching response data to this URL.
           </p>
+          <details className="text-[11px] text-muted mb-3">
+            <summary className="cursor-pointer text-accent hover:underline">Setup tips for Make / Zapier</summary>
+            <div className="mt-2 flex flex-col gap-1.5 pl-3 border-l-2 border-card-border">
+              <p><strong>Make:</strong> Create a Custom Webhook module → in the webhook settings, leave API Key authentication empty → copy the URL → paste here → click &ldquo;Run once&rdquo; in Make → then click Test below. Make must be listening before the test will work.</p>
+              <p><strong>Zapier:</strong> Create a &ldquo;Webhooks by Zapier&rdquo; trigger → choose &ldquo;Catch Hook&rdquo; → copy the URL → paste here → click Test. Zapier is always listening.</p>
+              <p>We send JSON with <code className="font-mono bg-card-border/30 px-1 rounded">person</code> (name, email, persona, sentiment, mood) and <code className="font-mono bg-card-border/30 px-1 rounded">response</code> (transcription, themes, source) fields.</p>
+            </div>
+          </details>
           <div className="flex gap-2">
             <input
               type="url"
@@ -290,6 +307,25 @@ export function FlowForm({ existingFlow }: { existingFlow?: Flow }) {
           webhookUrl={webhookUrl}
           campaignNames={Object.fromEntries(campaigns.map((c) => [c.id, c.name]))}
         />
+      </div>
+
+      {/* Safety filters */}
+      <div className="mb-6">
+        <label className="text-xs text-muted uppercase tracking-wider block mb-1.5">Safety filters</label>
+        <div className="soft-card p-4 flex flex-col gap-2">
+          <label className="flex items-center gap-2 text-sm cursor-pointer">
+            <input type="checkbox" checked={safetyRequired.no_pii} onChange={() => setSafetyRequired({ ...safetyRequired, no_pii: !safetyRequired.no_pii })} />
+            Skip responses containing personal information (PII)
+          </label>
+          <label className="flex items-center gap-2 text-sm cursor-pointer">
+            <input type="checkbox" checked={safetyRequired.no_profanity} onChange={() => setSafetyRequired({ ...safetyRequired, no_profanity: !safetyRequired.no_profanity })} />
+            Skip responses with profanity
+          </label>
+          <label className="flex items-center gap-2 text-sm cursor-pointer">
+            <input type="checkbox" checked={safetyRequired.no_hate_speech} onChange={() => setSafetyRequired({ ...safetyRequired, no_hate_speech: !safetyRequired.no_hate_speech })} />
+            Skip responses with hate speech or harassment
+          </label>
+        </div>
       </div>
 
       {/* Name & Description */}

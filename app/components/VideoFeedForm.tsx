@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAuthContext } from "./AuthProvider";
 import { ConditionBuilder } from "./ConditionBuilder";
+import { useCustomAnalysisFields } from "../hooks/useCustomAnalysisFields";
 import type { VideoFeed, FlowCondition } from "../lib/types";
 
 const DEFAULT_SAFETY = { no_pii: true, no_profanity: true, no_hate_speech: true, on_topic: true };
@@ -30,6 +31,7 @@ export function VideoFeedForm({ existingFeed }: { existingFeed?: VideoFeed }) {
 
   const [personas, setPersonas] = useState<string[]>([]);
   const [forms, setForms] = useState<string[]>([]);
+  const customFields = useCustomAnalysisFields(tenant, campaignScope, campaigns);
 
   useEffect(() => {
     if (!tenant) return;
@@ -127,7 +129,21 @@ export function VideoFeedForm({ existingFeed }: { existingFeed?: VideoFeed }) {
             Embed in any site with: <code className="font-mono">&lt;iframe src=&quot;{publicUrl}&quot;&gt;&lt;/iframe&gt;</code>
           </p>
           <p className="text-xs text-muted/70 mt-1">
-            Or fetch JSON from: <code className="font-mono">/api/feeds/{existingFeed.slug}</code>
+            JSON API: <code className="font-mono">/api/feeds/{existingFeed.slug}</code>
+          </p>
+          <div className="flex items-center gap-2 mt-2">
+            <p className="text-xs text-muted/70">
+              RSS feed: <code className="font-mono">/api/feeds/{existingFeed.slug}/rss</code>
+            </p>
+            <button
+              onClick={() => navigator.clipboard.writeText(`${publicUrl ? publicUrl.replace('/feeds/', '/api/feeds/') : ''}/rss`)}
+              className="text-[10px] text-accent hover:underline"
+            >
+              Copy RSS URL
+            </button>
+          </div>
+          <p className="text-[10px] text-muted/50 mt-1">
+            Use the RSS URL with Squarespace, WordPress, or any RSS reader to auto-import posts.
           </p>
         </div>
       )}
@@ -198,6 +214,7 @@ export function VideoFeedForm({ existingFeed }: { existingFeed?: VideoFeed }) {
             personas={personas}
             forms={forms}
             campaigns={campaigns}
+            customFields={customFields}
             onChange={setConditions}
             onLogicChange={setConditionLogic}
           />

@@ -78,6 +78,22 @@ export function LoginForm() {
 
   return (
     <form onSubmit={handleSubmit} className="flex flex-col gap-4 w-full">
+      {mode === "signup" && (
+        <div className="text-center mb-2">
+          <h2 className="text-base font-semibold mb-1">Create your account</h2>
+          <p className="text-xs text-muted">
+            Your email domain must match an existing organization. Ask your admin to invite you if you&apos;re not sure.
+          </p>
+        </div>
+      )}
+      {mode === "forgot" && (
+        <div className="text-center mb-2">
+          <h2 className="text-base font-semibold mb-1">Reset your password</h2>
+          <p className="text-xs text-muted">
+            Enter the email address on your account and we&apos;ll send you a reset link.
+          </p>
+        </div>
+      )}
       <div className="flex flex-col gap-1">
         <label className="text-sm text-muted">Email address</label>
         <input

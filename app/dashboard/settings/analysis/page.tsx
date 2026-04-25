@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef, useCallback } from "react";
 import { useAuthContext } from "../../../components/AuthProvider";
 import { PromptEditor } from "../../../components/PromptEditor";
 import { SchemaBuilder, fieldsToSchema, schemaToFields } from "../../../components/SchemaBuilder";
@@ -19,6 +19,34 @@ export default function AnalysisConfigPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
+
+  const initialLoadDone = useRef(false);
+
+  // Auto-save with debounce
+  const autoSave = useCallback(async () => {
+    if (!tenant || !activeCampaign || !initialLoadDone.current) return;
+    setSaving(true);
+    await fetch("/api/dashboard/analysis-config", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        tenant_id: tenant.id,
+        campaign_id: activeCampaign.id,
+        system_prompt: systemPrompt,
+        output_schema: fieldsToSchema(fields),
+        model,
+      }),
+    });
+    setSaving(false);
+    setSaved(true);
+    setTimeout(() => setSaved(false), 2000);
+  }, [tenant, activeCampaign, systemPrompt, fields, model]);
+
+  useEffect(() => {
+    if (!initialLoadDone.current) return;
+    const timer = setTimeout(autoSave, 1500);
+    return () => clearTimeout(timer);
+  }, [systemPrompt, fields, model, autoSave]);
 
   // Preview state
   const [previewOpen, setPreviewOpen] = useState(false);
@@ -41,6 +69,7 @@ export default function AnalysisConfigPage() {
       if (config.model) setModel(config.model);
       if (taxonomy.buckets) setPersonas(taxonomy.buckets);
       setLoading(false);
+      setTimeout(() => { initialLoadDone.current = true; }, 100);
     }).catch(() => setLoading(false));
   }, [tenant]);
 
@@ -127,15 +156,26 @@ export default function AnalysisConfigPage() {
   return (
     <div className="max-w-2xl">
       <OrgBanner />
-      <div className="flex items-center gap-3 mb-1">
-        <h2 className="text-lg font-bold">Analysis Configuration</h2>
-        <CampaignPicker />
+      <div className="flex items-center justify-between mb-1">
+        <div className="flex items-center gap-3">
+          <h2 className="text-lg font-bold">Analysis Configuration</h2>
+          <CampaignPicker />
+        </div>
+        <div className="flex items-center gap-3">
+          {saving && <span className="text-[10px] text-muted animate-pulse">Saving...</span>}
+          {saved && !saving && <span className="text-[10px] text-seafoam">Saved</span>}
+          <button
+            onClick={() => setPreviewOpen(true)}
+            className="text-xs text-accent hover:underline"
+          >
+            Preview with sample
+          </button>
+        </div>
       </div>
       <p className="text-sm text-muted mb-6">
         This is where you control what insights your AI extracts from each response.
         Add fields for the things you care about — themes, sentiment, specific questions
-        — and the system will automatically look for them in every new submission. Use
-        the preview button to test your setup before saving.
+        — and the system will automatically look for them in every new submission.
       </p>
 
       <div className="flex flex-col gap-6">
@@ -148,24 +188,6 @@ export default function AnalysisConfigPage() {
 
         <SchemaBuilder fields={fields} onChange={setFields} />
 
-        <div className="flex items-center gap-3">
-          <button
-            onClick={handleSave}
-            disabled={saving}
-            className="neu-button-primary text-sm"
-          >
-            {saving ? "Saving..." : "Save Configuration"}
-          </button>
-          <button
-            onClick={() => setPreviewOpen(true)}
-            className="text-sm text-accent hover:underline"
-          >
-            Preview with sample
-          </button>
-          {saved && (
-            <span className="text-sm text-positive">Saved</span>
-          )}
-        </div>
       </div>
 
       <Modal

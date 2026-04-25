@@ -4,6 +4,8 @@ import { useState } from "react";
 
 export type FieldType = "text" | "text_list" | "single_choice" | "number" | "boolean";
 
+export type DashboardDisplay = "bar" | "pie" | "list" | "hidden" | "none";
+
 export interface SchemaField {
   id: string;
   name: string;
@@ -11,6 +13,9 @@ export interface SchemaField {
   description: string;
   options: string[];
   required: boolean;
+  dashboardDisplay: DashboardDisplay;
+  showTop: boolean;
+  showAverage: boolean;
 }
 
 const fieldTypeLabels: Record<FieldType, string> = {
@@ -141,8 +146,42 @@ export function SchemaFieldRow({
         )}
       </div>
 
-      {/* Remove at bottom-right with confirmation */}
-      <div className="flex justify-end mt-4 pt-3 border-t border-muted/10">
+      {/* Dashboard display */}
+      <div className="mt-4 pt-3 border-t border-muted/10">
+        <label className="text-[10px] text-muted uppercase tracking-wider block mb-2">Dashboard display</label>
+        <div className="flex items-center gap-3 flex-wrap">
+          <select
+            value={field.dashboardDisplay}
+            onChange={(e) => onChange({ ...field, dashboardDisplay: e.target.value as DashboardDisplay })}
+            className="text-xs py-1.5 px-2 rounded-lg"
+            style={{ minHeight: "unset", height: "auto" }}
+          >
+            <option value="bar">Bar chart</option>
+            <option value="pie">Pie chart</option>
+            <option value="list">Ranked list</option>
+            <option value="none">None</option>
+          </select>
+          <label className="flex items-center gap-1.5 text-xs text-muted cursor-pointer">
+            <input
+              type="checkbox"
+              checked={field.showTop}
+              onChange={(e) => onChange({ ...field, showTop: e.target.checked })}
+            />
+            Show top
+          </label>
+          <label className="flex items-center gap-1.5 text-xs text-muted cursor-pointer">
+            <input
+              type="checkbox"
+              checked={field.showAverage}
+              onChange={(e) => onChange({ ...field, showAverage: e.target.checked })}
+            />
+            Show average
+          </label>
+        </div>
+      </div>
+
+      {/* Remove */}
+      <div className="flex justify-end mt-3 pt-3 border-t border-muted/10">
         {confirmDelete ? (
           <div className="flex items-center gap-3">
             <span className="text-xs text-muted">Are you sure?</span>

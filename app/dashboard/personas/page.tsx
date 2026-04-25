@@ -82,7 +82,7 @@ export default function PersonasPage() {
             <div key={persona.name}>
               <div className="mb-3">
                 <div className="flex items-center gap-3">
-                  <h3 className="text-base font-bold">{persona.name}</h3>
+                  <h3 className="text-2xl font-bold">{persona.name}</h3>
                   <span className="text-xs text-muted">{people.length} {people.length === 1 ? "person" : "people"}</span>
                 </div>
                 <p className="text-sm text-muted mt-0.5">{persona.description}</p>

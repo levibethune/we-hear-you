@@ -32,12 +32,21 @@ export function VideoFeedCard({
         {feed.description && (
           <p className="text-xs text-muted mt-0.5 truncate">{feed.description}</p>
         )}
-        <div className="flex items-center gap-2 mt-1.5">
+        <div className="flex items-center gap-2 mt-1.5 flex-wrap">
           <code className="text-[10px] text-muted/60 font-mono bg-card-border/30 px-2 py-0.5 rounded truncate max-w-xs">
             /feeds/{feed.slug}
           </code>
           <button onClick={handleCopy} className="text-[10px] text-accent hover:underline">
             {copied ? "Copied!" : "Copy URL"}
+          </button>
+          <span className="text-[10px] text-muted/30">|</span>
+          <button
+            onClick={() => {
+              navigator.clipboard.writeText(`${typeof window !== "undefined" ? window.location.origin : ""}/api/feeds/${feed.slug}/rss`);
+            }}
+            className="text-[10px] text-muted/60 hover:text-accent"
+          >
+            Copy RSS
           </button>
         </div>
       </div>

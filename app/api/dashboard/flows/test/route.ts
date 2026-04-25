@@ -32,6 +32,28 @@ export async function POST(request: NextRequest) {
 
   if (!config?.url) return NextResponse.json({ error: "No webhook URL configured" }, { status: 400 });
 
+  // Fetch analysis config to include sample custom fields in test payload
+  const db2 = getServerClient();
+  const { data: analysisConfig } = await db2
+    .from("analysis_configs")
+    .select("output_schema")
+    .eq("tenant_id", tenant_id)
+    .eq("is_active", true)
+    .limit(1)
+    .maybeSingle();
+
+  const customFields: Record<string, unknown> = {};
+  if (analysisConfig?.output_schema?.properties) {
+    for (const [key, prop] of Object.entries(analysisConfig.output_schema.properties) as [string, Record<string, unknown>][]) {
+      if (["themes", "mood", "sentiment", "persona", "safety"].includes(key)) continue;
+      if (prop.enum) customFields[`analysis_${key}`] = (prop.enum as string[])[0] || "sample";
+      else if (prop.type === "array") customFields[`analysis_${key}`] = ["sample_1", "sample_2"];
+      else if (prop.type === "number") customFields[`analysis_${key}`] = 7;
+      else if (prop.type === "boolean") customFields[`analysis_${key}`] = true;
+      else customFields[`analysis_${key}`] = "sample value";
+    }
+  }
+
   const testPayload = {
     event: "test",
     flow_id: flowId || null,
@@ -48,13 +70,16 @@ export async function POST(request: NextRequest) {
     },
     response: {
       id: "00000000-0000-0000-0000-000000000000",
+      campaign_id: "00000000-0000-0000-0000-000000000000",
       transcription: "This is a test payload from We Hear You to verify your webhook connection is working.",
       themes: ["test", "webhook"],
       mood: "curious",
       sentiment: "positive",
       source_type: "test",
       source_form_name: "Test Form",
+      video_url: "https://example.com/sample-video.mp4",
       created_at: new Date().toISOString(),
+      ...customFields,
     },
   };
 

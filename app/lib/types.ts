@@ -83,6 +83,17 @@ export interface SchemaProperty {
   description?: string;
   enum?: string[];
   items?: { type: string };
+  dashboard_display?: "bar" | "pie" | "list" | "top" | "hidden" | "none";
+  dashboard_show_top?: boolean;
+  dashboard_show_average?: boolean;
+  [key: string]: unknown;
+}
+
+export interface FieldStat {
+  type: "enum" | "array" | "scalar";
+  counts?: Record<string, number>;
+  items?: { value: string; count: number }[];
+  top?: string | number;
 }
 
 export interface Taxonomy {
@@ -131,9 +142,9 @@ export interface Flow {
   trigger_on: "response_created" | "person_updated" | "both";
   conditions: FlowCondition[];
   condition_logic: "all" | "any";
-  action_type: "webhook" | "slack" | "in_app" | "email_digest";
-  action_config: WebhookActionConfig | SlackActionConfig | InAppActionConfig | EmailDigestActionConfig;
-  category: "flow" | "notification";
+  action_type: "webhook" | "slack" | "in_app" | "email_digest" | "webflow";
+  action_config: WebhookActionConfig | SlackActionConfig | InAppActionConfig | EmailDigestActionConfig | WebflowActionConfig;
+  category: "flow" | "notification" | "webflow";
   is_active: boolean;
   last_triggered_at: string | null;
   created_by: string | null;
@@ -153,6 +164,16 @@ export interface InAppActionConfig {
 
 export interface EmailDigestActionConfig {
   recipients: string[];
+}
+
+export interface WebflowActionConfig {
+  site_id: string;
+  site_name?: string;
+  collection_id: string;
+  collection_name?: string;
+  field_mapping: Record<string, string>;
+  auto_publish?: boolean;
+  safety_required?: { no_pii: boolean; no_profanity: boolean; no_hate_speech: boolean };
 }
 
 export interface VideoFeed {
@@ -191,7 +212,7 @@ export interface InAppNotification {
 }
 
 export interface FlowCondition {
-  field: "campaign" | "sentiment" | "mood" | "persona" | "themes" | "source_type" | "source_form_name" | "transcription";
+  field: string; // built-ins (campaign, sentiment, mood, persona, themes, source_type, source_form_name, transcription) or any custom analysis field name
   operator: "equals" | "not_equals" | "contains" | "not_contains" | "in" | "not_in";
   value: string | string[];
 }
@@ -225,4 +246,6 @@ export interface DashboardStats {
   sentimentBreakdown: Record<string, number>;
   topThemes: { theme: string; count: number }[];
   recentResponses: Response[];
+  fieldStats?: Record<string, FieldStat>;
+  fieldDisplays?: Record<string, string>;
 }

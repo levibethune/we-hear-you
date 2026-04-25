@@ -36,6 +36,12 @@
       "headers": [
         { "key": "X-Frame-Options", "value": "ALLOWALL" }
       ]
+    },
+    {
+      "source": "/embed/(.*)",
+      "headers": [
+        { "key": "X-Frame-Options", "value": "ALLOWALL" }
+      ]
     }
   ]
 }

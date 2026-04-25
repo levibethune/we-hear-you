@@ -37,17 +37,18 @@ export async function POST(request: NextRequest) {
   }
 
   // Validate category
-  const validCategories = ["flow", "notification"];
+  const validCategories = ["flow", "notification", "webflow"];
   if (category && !validCategories.includes(category)) {
     return NextResponse.json({ error: "Invalid category" }, { status: 400 });
   }
 
   // Validate conditions structure
-  const validFields = ["campaign", "sentiment", "mood", "persona", "themes", "source_type", "source_form_name", "transcription"];
   const validOperators = ["equals", "not_equals", "contains", "not_contains", "in", "not_in"];
+  const customFieldPattern = /^[a-z][a-z0-9_]{0,63}$/i;
   if (Array.isArray(conditions)) {
     for (const c of conditions) {
-      if (c.field && !validFields.includes(c.field)) {
+      // Allow built-ins + any alphanumeric/underscore custom field name
+      if (c.field && !customFieldPattern.test(c.field)) {
         return NextResponse.json({ error: `Invalid condition field: ${c.field}` }, { status: 400 });
       }
       if (c.operator && !validOperators.includes(c.operator)) {
@@ -66,6 +67,14 @@ export async function POST(request: NextRequest) {
   }
   if (type === "email_digest" && (!Array.isArray(action_config?.recipients) || action_config.recipients.length === 0)) {
     return NextResponse.json({ error: "At least one email recipient is required" }, { status: 400 });
+  }
+  if (type === "webflow") {
+    if (!action_config?.collection_id) {
+      return NextResponse.json({ error: "Webflow collection is required" }, { status: 400 });
+    }
+    if (!action_config?.field_mapping || Object.keys(action_config.field_mapping).length === 0) {
+      return NextResponse.json({ error: "At least one field mapping is required" }, { status: 400 });
+    }
   }
 
   const db = getServerClient();

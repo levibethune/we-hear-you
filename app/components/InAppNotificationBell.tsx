@@ -1,9 +1,35 @@
 "use client";
 
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState, useRef, useCallback } from "react";
 import Link from "next/link";
 import { useAuthContext } from "./AuthProvider";
 import type { InAppNotification } from "../lib/types";
+
+function requestDesktopPermission() {
+  if (typeof window === "undefined" || !("Notification" in window)) return;
+  if (Notification.permission === "default") {
+    Notification.requestPermission();
+  }
+}
+
+function showDesktopNotification(notification: InAppNotification) {
+  if (typeof window === "undefined" || !("Notification" in window)) return;
+  if (Notification.permission !== "granted") return;
+
+  const n = new Notification(notification.title, {
+    body: notification.body || undefined,
+    icon: "/favicon.png",
+    tag: notification.id, // prevents duplicates for same notification
+  });
+
+  if (notification.link) {
+    n.onclick = () => {
+      window.focus();
+      window.location.href = notification.link!;
+      n.close();
+    };
+  }
+}
 
 export function InAppNotificationBell() {
   const { tenant, user } = useAuthContext();
@@ -11,24 +37,42 @@ export function InAppNotificationBell() {
   const [unreadCount, setUnreadCount] = useState(0);
   const [open, setOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
+  const seenIdsRef = useRef<Set<string>>(new Set());
+  const initialLoadRef = useRef(true);
 
-  function fetchNotifications() {
+  const fetchNotifications = useCallback(() => {
     if (!tenant) return;
     fetch(`/api/dashboard/notifications?tenant_id=${tenant.id}`)
       .then((r) => r.json())
       .then((data) => {
-        setNotifications(data.notifications ?? []);
+        const items: InAppNotification[] = data.notifications ?? [];
+        setNotifications(items);
         setUnreadCount(data.unreadCount ?? 0);
+
+        // Show desktop notifications for NEW unread items (not on initial load)
+        if (!initialLoadRef.current && user) {
+          for (const n of items) {
+            if (!n.read_by?.includes(user.id) && !seenIdsRef.current.has(n.id)) {
+              showDesktopNotification(n);
+            }
+          }
+        }
+
+        // Track all seen IDs
+        for (const n of items) {
+          seenIdsRef.current.add(n.id);
+        }
+        initialLoadRef.current = false;
       })
       .catch(() => {});
-  }
+  }, [tenant, user]);
 
   useEffect(() => {
+    requestDesktopPermission();
     fetchNotifications();
-    // Poll every 60s
     const interval = setInterval(fetchNotifications, 60000);
     return () => clearInterval(interval);
-  }, [tenant]);
+  }, [fetchNotifications]);
 
   // Close dropdown on outside click
   useEffect(() => {

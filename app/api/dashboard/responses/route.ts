@@ -46,6 +46,15 @@ export async function GET(request: NextRequest) {
   if (source) query = query.eq("source_type", source);
   if (personaParam) query = query.contains("raw_analysis", { persona: personaParam });
   if (form) query = query.eq("source_form_name", form);
+
+  // Custom analysis field filters (passed as custom_fieldname=value)
+  for (const [key, value] of params.entries()) {
+    if (key.startsWith("custom_") && value) {
+      const fieldName = key.slice(7); // strip "custom_" prefix
+      query = query.contains("raw_analysis", { [fieldName]: value });
+    }
+  }
+
   if (search) {
     query = query.textSearch("transcription_search", search, { type: "websearch" });
   }
