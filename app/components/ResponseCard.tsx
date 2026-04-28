@@ -61,6 +61,28 @@ export function ResponseCard({
     setReprocessing(false);
   }
 
+  async function handleReanalyze() {
+    if (!tenant || !transcription.trim()) return;
+    if (!confirm("Re-analyze this response? This re-runs AI analysis on the current transcript and fires any matching output flows (which may publish a new item).")) return;
+    setReprocessing(true);
+    try {
+      await fetch("/api/dashboard/responses/reprocess", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          tenant_id: tenant.id,
+          response_id: response.id,
+          transcription,
+        }),
+      });
+      track("response_reanalyzed", { response_id: response.id });
+      onUpdate?.();
+    } catch {
+      // silently fail
+    }
+    setReprocessing(false);
+  }
+
   return (
     <div className="soft-card p-5 max-w-4xl">
       <div className="flex gap-6">
@@ -183,6 +205,15 @@ export function ResponseCard({
               className="text-xs text-muted hover:text-foreground transition-colors"
             >
               Edit transcript
+            </button>
+          )}
+          {!editing && transcription.trim() && (
+            <button
+              onClick={handleReanalyze}
+              disabled={reprocessing}
+              className="text-xs text-muted hover:text-foreground transition-colors disabled:opacity-50"
+            >
+              {reprocessing ? "Re-analyzing…" : "Re-analyze"}
             </button>
           )}
           {hasVideo && (
