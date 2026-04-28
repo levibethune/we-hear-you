@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getServerClient } from "../../../../lib/supabase-server";
 import { verifyTenantAccess, unauthorized, forbidden } from "../../../../lib/dashboard-auth";
-import { matchesConditions } from "../../../../../lib/flows/conditions.js";
+import { matchesConditions, describeFirstFailure } from "../../../../../lib/flows/conditions.js";
 import { executeWebflowAction } from "../../../../../lib/integrations/webflow-action.js";
 
 /**
@@ -71,6 +71,15 @@ export async function POST(request: NextRequest) {
     // Check conditions
     if (!matchesConditions(flow.conditions, flow.condition_logic, resp, person)) {
       skipped++;
+      const reason = describeFirstFailure(flow.conditions, flow.condition_logic, resp, person);
+      await db.from("flow_executions").insert({
+        flow_id: flow.id,
+        tenant_id,
+        trigger_event: "backfill",
+        trigger_record_id: resp.id,
+        status: "skipped",
+        error: reason ? `Conditions: ${reason}` : "Conditions did not match",
+      });
       continue;
     }
 
@@ -78,9 +87,22 @@ export async function POST(request: NextRequest) {
     const safetyReq = flow.action_config?.safety_required;
     if (safetyReq) {
       const safety = resp.raw_analysis?.safety || {};
-      if (safetyReq.no_pii && safety.contains_pii) { skipped++; continue; }
-      if (safetyReq.no_profanity && safety.contains_profanity) { skipped++; continue; }
-      if (safetyReq.no_hate_speech && safety.contains_hate_speech) { skipped++; continue; }
+      let safetyReason = null;
+      if (safetyReq.no_pii && safety.contains_pii) safetyReason = "Response contains personal information (PII)";
+      else if (safetyReq.no_profanity && safety.contains_profanity) safetyReason = "Response contains profanity";
+      else if (safetyReq.no_hate_speech && safety.contains_hate_speech) safetyReason = "Response contains hate speech or harassment";
+      if (safetyReason) {
+        skipped++;
+        await db.from("flow_executions").insert({
+          flow_id: flow.id,
+          tenant_id,
+          trigger_event: "backfill",
+          trigger_record_id: resp.id,
+          status: "skipped",
+          error: `Safety filter: ${safetyReason}`,
+        });
+        continue;
+      }
     }
 
     // Execute

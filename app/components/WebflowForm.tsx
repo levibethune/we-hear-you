@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAuthContext } from "./AuthProvider";
 import { ConditionBuilder } from "./ConditionBuilder";
+import { FlowHistory } from "./FlowHistory";
 import { useCustomAnalysisFields } from "../hooks/useCustomAnalysisFields";
 import type { Flow, FlowCondition, WebflowActionConfig } from "../lib/types";
 
@@ -793,6 +794,14 @@ export function WebflowForm({ existingFlow }: { existingFlow?: Flow }) {
               </div>
             )}
           </div>
+        </div>
+      )}
+
+      {/* History */}
+      {isEdit && tenant && (
+        <div className="mb-6">
+          <label className="text-xs text-muted uppercase tracking-wider block mb-1.5">History</label>
+          <FlowHistory tenantId={tenant.id} flowId={existingFlow.id} />
         </div>
       )}
 
