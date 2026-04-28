@@ -28,6 +28,96 @@ const BUILTIN_FIELDS = [
   { key: "created_at", label: "Date" },
 ];
 
+const FIELD_LABELS: Record<string, string> = {
+  campaign: "Campaign",
+  source_form_name: "Form",
+  source_type: "Source",
+  transcription: "Transcription",
+};
+
+const OPERATOR_LABELS: Record<string, string> = {
+  equals: "is",
+  not_equals: "is not",
+  contains: "contains",
+  not_contains: "does not contain",
+  in: "is one of",
+  not_in: "is not one of",
+};
+
+const SOURCE_VALUE_LABELS: Record<string, string> = {
+  videoask: "VideoAsk",
+  custom: "Custom",
+  "csv-import": "CSV Import",
+  "videoask-link": "VideoAsk Link",
+};
+
+function describeValue(
+  field: string,
+  value: unknown,
+  campaigns: { id: string; name: string }[],
+  customFields: { key: string; label: string }[]
+): string {
+  if (value == null || value === "") return "(empty)";
+  if (Array.isArray(value)) return value.map((v) => describeValue(field, v, campaigns, customFields)).join(", ");
+  const str = String(value);
+  if (field === "campaign") {
+    const c = campaigns.find((c) => c.id === str);
+    return c ? `"${c.name}"` : `"${str}"`;
+  }
+  if (field === "source_type") return `"${SOURCE_VALUE_LABELS[str] ?? str}"`;
+  return `"${str}"`;
+}
+
+function fieldLabel(field: string, customFields: { key: string; label: string }[]): string {
+  if (FIELD_LABELS[field]) return FIELD_LABELS[field];
+  const cf = customFields.find((c) => c.key === field);
+  return cf?.label ?? field;
+}
+
+function describeCondition(
+  c: FlowCondition,
+  campaigns: { id: string; name: string }[],
+  customFields: { key: string; label: string }[]
+): string {
+  const f = fieldLabel(c.field, customFields);
+  const op = OPERATOR_LABELS[c.operator] ?? c.operator;
+  const v = describeValue(c.field, c.value, campaigns, customFields);
+  return `${f} ${op} ${v}`;
+}
+
+// Detects filters that can never match under ALL logic:
+//   1. Same field with multiple distinct `equals` values
+//      (e.g. Campaign is X AND Campaign is Y — a response only has one)
+//   2. Same field with `equals X` AND `not_equals X`
+function detectUnsatisfiable(
+  conditions: FlowCondition[],
+  logic: "all" | "any"
+): { field: string; reason: "multiple-equals" | "equals-and-not-equals" } | null {
+  if (logic !== "all") return null;
+  const equalsByField: Record<string, Set<string>> = {};
+  const notEqualsByField: Record<string, Set<string>> = {};
+  for (const c of conditions) {
+    if (c.value == null || c.value === "") continue;
+    const key = c.field as string;
+    if (c.operator === "equals") {
+      if (!equalsByField[key]) equalsByField[key] = new Set();
+      equalsByField[key].add(String(c.value));
+    } else if (c.operator === "not_equals") {
+      if (!notEqualsByField[key]) notEqualsByField[key] = new Set();
+      notEqualsByField[key].add(String(c.value));
+    }
+  }
+  for (const [field, vals] of Object.entries(equalsByField)) {
+    if (vals.size > 1) return { field, reason: "multiple-equals" };
+  }
+  for (const [field, eqVals] of Object.entries(equalsByField)) {
+    const neqVals = notEqualsByField[field];
+    if (!neqVals) continue;
+    for (const v of eqVals) if (neqVals.has(v)) return { field, reason: "equals-and-not-equals" };
+  }
+  return null;
+}
+
 // Auto-map WHY field keys to common Webflow field slug patterns
 function autoMapFields(whyKey: string, webflowFields: WebflowField[]): string {
   const candidates: Record<string, string[]> = {
@@ -204,6 +294,10 @@ export function WebflowForm({ existingFlow }: { existingFlow?: Flow }) {
 
   // Combined field list: built-ins + custom analysis fields
   const whyFields = [...BUILTIN_FIELDS, ...customAnalysisFields];
+
+  // Detect filters that can never match, so we can warn the user and block Save.
+  const validConditionsForCheck = conditions.filter((c) => c.value !== "" && (typeof c.value !== "object" || (Array.isArray(c.value) && c.value.length > 0)));
+  const unsatisfiable = detectUnsatisfiable(validConditionsForCheck, conditionLogic);
 
   // Auto-map custom analysis fields when they load (if not already mapped)
   useEffect(() => {
@@ -702,14 +796,63 @@ export function WebflowForm({ existingFlow }: { existingFlow?: Flow }) {
         </div>
       )}
 
+      {/* Plain-language summary */}
+      {(collectionName || conditions.length > 0) && (() => {
+        const validConditions = validConditionsForCheck;
+        const joiner = conditionLogic === "all" ? " AND " : " OR ";
+        const conditionPhrases = validConditions.map((c) => describeCondition(c, campaigns, customAnalysisFields));
+        const scopeLabel = campaignScope
+          ? campaigns.find((c) => c.id === campaignScope)?.name
+          : null;
+        const safetyParts: string[] = [];
+        if (safetyRequired.no_pii) safetyParts.push("personal info");
+        if (safetyRequired.no_profanity) safetyParts.push("profanity");
+        if (safetyRequired.no_hate_speech) safetyParts.push("hate speech");
+
+        return (
+          <div className="mb-6">
+            <label className="text-xs text-muted uppercase tracking-wider block mb-1.5">What this output will do</label>
+            <div className="soft-card p-4 text-sm flex flex-col gap-2">
+              <p>
+                Publishes responses
+                {scopeLabel ? <> from <strong>{scopeLabel}</strong></> : <> from <strong>any campaign</strong></>}
+                {collectionName ? <> to the <strong>{collectionName}</strong> collection{siteName ? <> in <strong>{siteName}</strong></> : null}</> : null}
+                {", "}
+                {autoPublish ? "published live" : "saved as drafts"}.
+              </p>
+              {validConditions.length === 0 ? (
+                <p className="text-muted">No filters set — every response will publish (subject to safety filters below).</p>
+              ) : (
+                <p className="text-muted">
+                  Only when: {conditionPhrases.join(joiner)}
+                </p>
+              )}
+              {safetyParts.length > 0 && (
+                <p className="text-muted">Skips responses containing {safetyParts.join(", ")}.</p>
+              )}
+              {unsatisfiable && (
+                <p className="text-negative mt-1">
+                  {unsatisfiable.reason === "multiple-equals" ? (
+                    <>Heads up — this filter can never match. <strong>{fieldLabel(unsatisfiable.field, customAnalysisFields)}</strong> is being checked against multiple values with ALL logic, but a response only has one. Switch to <strong>Match ANY condition</strong> if you want either value to qualify.</>
+                  ) : (
+                    <>Heads up — this filter can never match. <strong>{fieldLabel(unsatisfiable.field, customAnalysisFields)}</strong> is set to both <em>is</em> and <em>is not</em> the same value under ALL logic, which can never both be true. Remove one of the conditions.</>
+                  )}
+                </p>
+              )}
+            </div>
+          </div>
+        );
+      })()}
+
       {error && <p className="text-xs text-negative mb-3">{error}</p>}
 
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
           <button
             onClick={handleSave}
-            disabled={saving}
-            className="bg-accent text-white rounded-xl px-6 py-2.5 text-sm font-medium hover:bg-accent-hover disabled:opacity-50"
+            disabled={saving || !!unsatisfiable}
+            title={unsatisfiable ? "Fix the filter conflict above before saving" : undefined}
+            className="bg-accent text-white rounded-xl px-6 py-2.5 text-sm font-medium hover:bg-accent-hover disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {saving ? "Saving…" : (isEdit ? "Save Changes" : "Create Webflow Output")}
           </button>

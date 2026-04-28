@@ -39,28 +39,35 @@ export function ConditionBuilder({
   return (
     <div>
       {conditions.length > 1 && (
-        <div className="flex items-center gap-2 mb-3">
-          <span className="text-xs text-muted">Match</span>
-          <button
-            onClick={() => onLogicChange("all")}
-            className={`text-xs px-2.5 py-1 rounded-full transition-colors ${
-              conditionLogic === "all"
-                ? "bg-accent/15 text-accent font-medium"
-                : "text-muted hover:text-foreground"
-            }`}
-          >
-            ALL conditions
-          </button>
-          <button
-            onClick={() => onLogicChange("any")}
-            className={`text-xs px-2.5 py-1 rounded-full transition-colors ${
-              conditionLogic === "any"
-                ? "bg-accent/15 text-accent font-medium"
-                : "text-muted hover:text-foreground"
-            }`}
-          >
-            ANY condition
-          </button>
+        <div className="mb-3">
+          <div className="flex items-center gap-2">
+            <span className="text-xs text-muted">Match</span>
+            <button
+              onClick={() => onLogicChange("all")}
+              className={`text-xs px-2.5 py-1 rounded-full transition-colors ${
+                conditionLogic === "all"
+                  ? "bg-accent/15 text-accent font-medium"
+                  : "text-muted hover:text-foreground"
+              }`}
+            >
+              ALL conditions
+            </button>
+            <button
+              onClick={() => onLogicChange("any")}
+              className={`text-xs px-2.5 py-1 rounded-full transition-colors ${
+                conditionLogic === "any"
+                  ? "bg-accent/15 text-accent font-medium"
+                  : "text-muted hover:text-foreground"
+              }`}
+            >
+              ANY condition
+            </button>
+          </div>
+          <p className="text-xs text-muted mt-1.5">
+            {conditionLogic === "all"
+              ? "A response must match every condition below to publish."
+              : "A response just needs to match one of the conditions below to publish."}
+          </p>
         </div>
       )}
 
@@ -69,6 +76,9 @@ export function ConditionBuilder({
           <ConditionRow
             key={i}
             condition={c}
+            conditions={conditions}
+            currentIndex={i}
+            conditionLogic={conditionLogic}
             personas={personas}
             forms={forms}
             campaigns={campaigns}
