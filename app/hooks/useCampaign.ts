@@ -86,6 +86,7 @@ export function useCampaign(tenant: Tenant | null) {
   return {
     campaigns,
     activeCampaign,
+    activeCampaignId,
     switchCampaign,
     refreshCampaigns,
     loading,

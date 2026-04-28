@@ -60,6 +60,15 @@ export async function POST(request: NextRequest) {
     .in("id", personIds);
   const peopleById = Object.fromEntries((peopleData || []).map((p) => [p.id, p]));
 
+  // Pre-fetch campaign names so skip reasons render as "Dog Stories" not a UUID
+  const { data: campaignsList } = await db
+    .from("campaigns")
+    .select("id, name")
+    .eq("tenant_id", tenant_id);
+  const lookups = {
+    campaigns: Object.fromEntries((campaignsList || []).map((c) => [c.id, c.name])),
+  };
+
   let sent = 0;
   let skipped = 0;
   let failed = 0;
@@ -71,7 +80,7 @@ export async function POST(request: NextRequest) {
     // Check conditions
     if (!matchesConditions(flow.conditions, flow.condition_logic, resp, person)) {
       skipped++;
-      const reason = describeFirstFailure(flow.conditions, flow.condition_logic, resp, person);
+      const reason = describeFirstFailure(flow.conditions, flow.condition_logic, resp, person, lookups);
       await db.from("flow_executions").insert({
         flow_id: flow.id,
         tenant_id,

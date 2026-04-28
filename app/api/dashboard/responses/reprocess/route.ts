@@ -24,21 +24,26 @@ async function getFlowEvaluator() {
 
 export async function POST(request: NextRequest) {
   const body = await request.json();
-  const { tenant_id, response_id, transcription } = body;
+  const { tenant_id, response_id, transcription, campaign_id: newCampaignIdRaw } = body as {
+    tenant_id: string;
+    response_id: string;
+    transcription?: string;
+    campaign_id?: string | null;
+  };
 
   const auth = await verifyTenantAccess(request, tenant_id, "admin");
   if (!auth) return tenant_id ? forbidden() : unauthorized();
 
-  if (!response_id || !transcription) {
-    return NextResponse.json({ error: "response_id and transcription required" }, { status: 400 });
+  if (!response_id) {
+    return NextResponse.json({ error: "response_id required" }, { status: 400 });
   }
 
   const db = getServerClient();
 
-  // Verify the response belongs to this tenant
+  // Verify the response belongs to this tenant + grab existing fields we need
   const { data: existing } = await db
     .from("responses")
-    .select("id, person_id")
+    .select("id, person_id, transcription, campaign_id")
     .eq("id", response_id)
     .eq("tenant_id", tenant_id)
     .single();
@@ -47,16 +52,19 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Response not found" }, { status: 404 });
   }
 
-  // Get analysis config — use campaign-specific config if response has a campaign
-  const { data: respMeta } = await db
-    .from("responses")
-    .select("campaign_id")
-    .eq("id", response_id)
-    .single();
+  // If transcription wasn't supplied, fall back to the stored one
+  const sourceText = transcription ?? existing.transcription ?? "";
+  if (!sourceText) {
+    return NextResponse.json({ error: "No transcription available to re-analyze" }, { status: 400 });
+  }
+
+  // Determine which campaign drives the analysis schema lookup
+  const isMovingCampaign = newCampaignIdRaw !== undefined;
+  const effectiveCampaignId = isMovingCampaign ? newCampaignIdRaw : existing.campaign_id;
 
   let configQuery = db.from("analysis_configs").select("system_prompt, output_schema, model").eq("is_active", true).limit(1);
-  if (respMeta?.campaign_id) {
-    configQuery = configQuery.eq("campaign_id", respMeta.campaign_id);
+  if (effectiveCampaignId) {
+    configQuery = configQuery.eq("campaign_id", effectiveCampaignId);
   } else {
     configQuery = configQuery.eq("tenant_id", tenant_id);
   }
@@ -67,7 +75,7 @@ export async function POST(request: NextRequest) {
 
   try {
     const sanitizeTranscription = await getSanitizer();
-    const cleanText = sanitizeTranscription(transcription);
+    const cleanText = sanitizeTranscription(sourceText);
     if (!cleanText) {
       return NextResponse.json({ error: "Transcription is empty after cleaning" }, { status: 400 });
     }
@@ -75,7 +83,7 @@ export async function POST(request: NextRequest) {
     const analysis = await analyzeTranscription(cleanText, null, config) as Record<string, unknown>;
     const transcEnc = await encrypt(cleanText);
 
-    // Update response
+    // Update response (include campaign_id only when moving)
     await db
       .from("responses")
       .update({
@@ -85,6 +93,7 @@ export async function POST(request: NextRequest) {
         mood: analysis.mood as string,
         sentiment: analysis.sentiment as string,
         raw_analysis: analysis,
+        ...(isMovingCampaign ? { campaign_id: newCampaignIdRaw || null } : {}),
       })
       .eq("id", response_id);
 
@@ -116,8 +125,10 @@ export async function POST(request: NextRequest) {
         .single();
 
       const evalFlows = await getFlowEvaluator();
-      await evalFlows(tenant_id, meta?.campaign_id || null, "response_created", {
+      const campaignForEval = isMovingCampaign ? (newCampaignIdRaw || null) : (meta?.campaign_id || null);
+      await evalFlows(tenant_id, campaignForEval, "response_created", {
         id: response_id,
+        campaign_id: campaignForEval,
         transcription: cleanText,
         themes: (analysis.themes as string[]) ?? [],
         mood: analysis.mood as string,

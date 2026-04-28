@@ -86,7 +86,7 @@ function parseCSVAllRows(text: string): { date: string; name: string; email: str
 }
 
 export default function ImportPage() {
-  const { tenant, activeCampaign } = useAuthContext();
+  const { tenant, activeCampaignId } = useAuthContext();
   const searchParams = useSearchParams();
 
   // Quick import state
@@ -180,7 +180,7 @@ export default function ImportPage() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          tenant_id: tenant.id, ...(activeCampaign ? { campaign_id: activeCampaign.id } : {}),
+          tenant_id: tenant.id, ...(activeCampaignId ? { campaign_id: activeCampaignId } : {}),
           form_id: formId.trim() || undefined,
         }),
       });
@@ -247,7 +247,7 @@ export default function ImportPage() {
                     const res = await fetch("/api/dashboard/import-link", {
                       method: "POST",
                       headers: { "Content-Type": "application/json" },
-                      body: JSON.stringify({ tenant_id: tenant.id, ...(activeCampaign ? { campaign_id: activeCampaign.id } : {}), url: linkUrl.trim() }),
+                      body: JSON.stringify({ tenant_id: tenant.id, ...(activeCampaignId ? { campaign_id: activeCampaignId } : {}), url: linkUrl.trim() }),
                     });
                     const data = await res.json();
                     if (data.error) {
@@ -334,7 +334,7 @@ export default function ImportPage() {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
                     body: JSON.stringify({
-                      tenant_id: tenant.id, ...(activeCampaign ? { campaign_id: activeCampaign.id } : {}),
+                      tenant_id: tenant.id, ...(activeCampaignId ? { campaign_id: activeCampaignId } : {}),
                       type: "import_links",
                       params: { urls },
                     }),
@@ -472,7 +472,7 @@ export default function ImportPage() {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
                     body: JSON.stringify({
-                      tenant_id: tenant.id, ...(activeCampaign ? { campaign_id: activeCampaign.id } : {}),
+                      tenant_id: tenant.id, ...(activeCampaignId ? { campaign_id: activeCampaignId } : {}),
                       type: "import_csv",
                       params: { rows: validRows, form_name: formName },
                     }),

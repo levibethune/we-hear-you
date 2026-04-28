@@ -27,12 +27,13 @@ export function ResponseCard({
   onUpdate?: () => void;
   compact?: boolean;
 }) {
-  const { tenant } = useAuthContext();
+  const { tenant, campaigns } = useAuthContext();
   const [expanded, setExpanded] = useState(false);
   const [editing, setEditing] = useState(false);
   const [editText, setEditText] = useState("");
   const [reprocessing, setReprocessing] = useState(false);
   const [showVideo, setShowVideo] = useState(false);
+  const [movingCampaign, setMovingCampaign] = useState(false);
   const persona = (response.raw_analysis as Record<string, string>)?.persona ?? null;
   const transcription = response.transcription ?? "";
   const isLong = transcription.length > 300;
@@ -72,10 +73,36 @@ export function ResponseCard({
         body: JSON.stringify({
           tenant_id: tenant.id,
           response_id: response.id,
-          transcription,
         }),
       });
       track("response_reanalyzed", { response_id: response.id });
+      onUpdate?.();
+    } catch {
+      // silently fail
+    }
+    setReprocessing(false);
+  }
+
+  async function handleMoveCampaign(newCampaignId: string | null) {
+    if (!tenant) return;
+    setMovingCampaign(false);
+    if (newCampaignId === (response.campaign_id ?? null)) return;
+    const newName = newCampaignId
+      ? campaigns.find((c) => c.id === newCampaignId)?.name ?? "the selected campaign"
+      : "no campaign";
+    if (!confirm(`Move this response to ${newName}? It will be re-analyzed with that campaign's analysis schema and any matching output flows will fire.`)) return;
+    setReprocessing(true);
+    try {
+      await fetch("/api/dashboard/responses/reprocess", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          tenant_id: tenant.id,
+          response_id: response.id,
+          campaign_id: newCampaignId,
+        }),
+      });
+      track("response_moved_campaign", { response_id: response.id, campaign_id: newCampaignId });
       onUpdate?.();
     } catch {
       // silently fail
@@ -216,6 +243,59 @@ export function ResponseCard({
               {reprocessing ? "Re-analyzing…" : "Re-analyze"}
             </button>
           )}
+          {!editing && campaigns.length > 0 && (() => {
+            const currentCampaign = response.campaign_id
+              ? campaigns.find((c) => c.id === response.campaign_id)
+              : null;
+            const buttonLabel = currentCampaign
+              ? `In ${currentCampaign.name}`
+              : "No campaign";
+            return (
+              <div className="relative">
+                <button
+                  onClick={() => setMovingCampaign((v) => !v)}
+                  disabled={reprocessing}
+                  className={`text-xs transition-colors disabled:opacity-50 inline-flex items-center gap-1 ${currentCampaign ? "text-foreground hover:text-accent" : "text-muted hover:text-foreground"}`}
+                  title="Change campaign"
+                >
+                  {buttonLabel}
+                  <span className="text-[8px] text-muted">▾</span>
+                </button>
+                {movingCampaign && (
+                  <div className="absolute right-0 bottom-full mb-1 z-10 soft-card p-1.5 min-w-[220px] flex flex-col gap-0.5 shadow-lg">
+                    {campaigns.filter((c) => !c.is_archived).map((c) => {
+                      const isCurrent = response.campaign_id === c.id;
+                      return (
+                        <button
+                          key={c.id}
+                          type="button"
+                          onClick={() => handleMoveCampaign(isCurrent ? null : c.id)}
+                          className="text-xs text-left px-2 py-1.5 rounded hover:bg-card-border/30 flex items-center gap-2"
+                        >
+                          <span className={`shrink-0 ${isCurrent ? "text-accent" : "text-muted/30"}`}>
+                            {isCurrent ? "✓" : "○"}
+                          </span>
+                          <span className="flex-1 truncate">{c.name}</span>
+                        </button>
+                      );
+                    })}
+                    {response.campaign_id != null && (
+                      <>
+                        <div className="border-t border-card-border my-1" />
+                        <button
+                          type="button"
+                          onClick={() => handleMoveCampaign(null)}
+                          className="text-xs text-left px-2 py-1.5 rounded hover:bg-card-border/30 text-muted"
+                        >
+                          Remove from campaign
+                        </button>
+                      </>
+                    )}
+                  </div>
+                )}
+              </div>
+            );
+          })()}
           {hasVideo && (
             <button
               onClick={() => setShowVideo(!showVideo)}

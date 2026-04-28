@@ -63,20 +63,34 @@ export function FlowHistory({ tenantId, flowId }: { tenantId: string; flowId: st
   const [executions, setExecutions] = useState<Execution[]>([]);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
+  const [open, setOpen] = useState(false);
+  const [hasFetched, setHasFetched] = useState(false);
+  const [summaryTotal, setSummaryTotal] = useState<number | null>(null);
+
+  // Lightweight summary fetch on mount so the collapsed header can show a count
+  useEffect(() => {
+    fetch(`/api/dashboard/flows/executions?tenant_id=${tenantId}&flow_id=${flowId}&page=1&per_page=1`)
+      .then((r) => r.json())
+      .then((data) => setSummaryTotal(data.total ?? 0))
+      .catch(() => {});
+  }, [tenantId, flowId]);
 
   useEffect(() => {
+    if (!open) return;
     setLoading(true);
     fetch(`/api/dashboard/flows/executions?tenant_id=${tenantId}&flow_id=${flowId}&page=${page}&per_page=${PER_PAGE}`)
       .then((r) => r.json())
       .then((data) => {
         setExecutions(data.executions ?? []);
         setTotal(data.total ?? 0);
+        setSummaryTotal(data.total ?? 0);
+        setHasFetched(true);
         setLoading(false);
       })
       .catch(() => setLoading(false));
-  }, [tenantId, flowId, page]);
+  }, [tenantId, flowId, page, open]);
 
   function toggle(id: string) {
     const next = new Set(expanded);
@@ -92,29 +106,43 @@ export function FlowHistory({ tenantId, flowId }: { tenantId: string; flowId: st
       .then((data) => {
         setExecutions(data.executions ?? []);
         setTotal(data.total ?? 0);
+        setSummaryTotal(data.total ?? 0);
         setLoading(false);
       })
       .catch(() => setLoading(false));
   }
 
   const lastPage = Math.max(1, Math.ceil(total / PER_PAGE));
+  const headerLabel = summaryTotal == null
+    ? "Loading…"
+    : summaryTotal === 0
+      ? "No activity yet"
+      : `${summaryTotal} ${summaryTotal === 1 ? "event" : "events"}`;
 
   return (
     <div className="soft-card p-4">
-      <div className="flex items-center justify-between mb-3">
-        <p className="text-xs text-muted">
-          {loading ? "Loading…" : total === 0 ? "No activity yet" : `${total} ${total === 1 ? "event" : "events"}`}
-        </p>
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        className="w-full flex items-center justify-between text-left"
+      >
+        <p className="text-xs text-muted">{headerLabel}</p>
+        <span className="text-xs text-muted">{open ? "Hide ▾" : "Show ▸"}</span>
+      </button>
+
+      {open && (
+      <div className="mt-3">
+      <div className="flex items-center justify-end mb-3">
         <button
           type="button"
           onClick={refresh}
           className="text-[10px] text-accent hover:underline"
         >
-          Refresh
+          {loading ? "Loading…" : "Refresh"}
         </button>
       </div>
 
-      {!loading && total === 0 && (
+      {!loading && hasFetched && total === 0 && (
         <p className="text-xs text-muted">
           Nothing here yet. As responses come in or you trigger backfills, you&apos;ll see what was sent, what failed, and what was filtered out (and why) right here.
         </p>
@@ -215,6 +243,8 @@ export function FlowHistory({ tenantId, flowId }: { tenantId: string; flowId: st
             Older →
           </button>
         </div>
+      )}
+      </div>
       )}
     </div>
   );

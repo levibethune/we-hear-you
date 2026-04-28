@@ -18,6 +18,7 @@ interface AuthContextValue {
   signOut: () => Promise<void>;
   campaigns: Campaign[];
   activeCampaign: Campaign | null;
+  activeCampaignId: string | null;
   switchCampaign: (id: string | null) => void;
   refreshCampaigns: () => void;
 }
@@ -44,6 +45,7 @@ function AuthProviderInner({ children }: { children: React.ReactNode }) {
         signOut: auth.signOut,
         campaigns: campaignState.campaigns,
         activeCampaign: campaignState.activeCampaign,
+        activeCampaignId: campaignState.activeCampaignId,
         switchCampaign: campaignState.switchCampaign,
         refreshCampaigns: campaignState.refreshCampaigns,
       }}
