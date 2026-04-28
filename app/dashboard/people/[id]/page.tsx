@@ -17,6 +17,7 @@ export default function PersonDetailPage() {
   const [person, setPerson] = useState<Person | null>(null);
   const [responses, setResponses] = useState<Response[]>([]);
   const [loading, setLoading] = useState(true);
+  const [refreshKey, setRefreshKey] = useState(0);
 
   useEffect(() => {
     if (!tenant || !id) return;
@@ -28,7 +29,7 @@ export default function PersonDetailPage() {
         setLoading(false);
       })
       .catch(() => setLoading(false));
-  }, [tenant, id]);
+  }, [tenant, id, refreshKey]);
 
   if (loading) {
     return (
@@ -70,7 +71,7 @@ export default function PersonDetailPage() {
       ) : (
         <div className="flex flex-col gap-3">
           {responses.map((r) => (
-            <ResponseCard key={r.id} response={r} />
+            <ResponseCard key={r.id} response={r} onUpdate={() => setRefreshKey((k) => k + 1)} />
           ))}
         </div>
       )}

@@ -262,36 +262,39 @@ export function ResponseCard({
                   <span className="text-[8px] text-muted">▾</span>
                 </button>
                 {movingCampaign && (
-                  <div className="absolute right-0 bottom-full mb-1 z-10 soft-card p-1.5 min-w-[220px] flex flex-col gap-0.5 shadow-lg">
-                    {campaigns.filter((c) => !c.is_archived).map((c) => {
-                      const isCurrent = response.campaign_id === c.id;
-                      return (
-                        <button
-                          key={c.id}
-                          type="button"
-                          onClick={() => handleMoveCampaign(isCurrent ? null : c.id)}
-                          className="text-xs text-left px-2 py-1.5 rounded hover:bg-card-border/30 flex items-center gap-2"
-                        >
-                          <span className={`shrink-0 ${isCurrent ? "text-accent" : "text-muted/30"}`}>
-                            {isCurrent ? "✓" : "○"}
-                          </span>
-                          <span className="flex-1 truncate">{c.name}</span>
-                        </button>
-                      );
-                    })}
-                    {response.campaign_id != null && (
-                      <>
-                        <div className="border-t border-card-border my-1" />
-                        <button
-                          type="button"
-                          onClick={() => handleMoveCampaign(null)}
-                          className="text-xs text-left px-2 py-1.5 rounded hover:bg-card-border/30 text-muted"
-                        >
-                          Remove from campaign
-                        </button>
-                      </>
-                    )}
-                  </div>
+                  <>
+                    <div className="fixed inset-0 z-10" onClick={() => setMovingCampaign(false)} />
+                    <div className="absolute right-0 top-full mt-1 z-20 soft-card p-1.5 w-60 max-w-[260px] flex flex-col gap-0.5 shadow-lg">
+                      {campaigns.filter((c) => !c.is_archived).map((c) => {
+                        const isCurrent = response.campaign_id === c.id;
+                        return (
+                          <button
+                            key={c.id}
+                            type="button"
+                            onClick={() => handleMoveCampaign(isCurrent ? null : c.id)}
+                            className="text-xs text-left px-2 py-1.5 rounded hover:bg-card-border/30 flex items-center gap-2"
+                          >
+                            <span className={`shrink-0 ${isCurrent ? "text-accent" : "text-muted/30"}`}>
+                              {isCurrent ? "✓" : "○"}
+                            </span>
+                            <span className="flex-1 truncate">{c.name}</span>
+                          </button>
+                        );
+                      })}
+                      {response.campaign_id != null && (
+                        <>
+                          <div className="border-t border-card-border my-1" />
+                          <button
+                            type="button"
+                            onClick={() => handleMoveCampaign(null)}
+                            className="text-xs text-left px-2 py-1.5 rounded hover:bg-card-border/30 text-muted"
+                          >
+                            Remove from campaign
+                          </button>
+                        </>
+                      )}
+                    </div>
+                  </>
                 )}
               </div>
             );

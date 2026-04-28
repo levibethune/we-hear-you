@@ -22,7 +22,7 @@ export async function GET(request: NextRequest) {
 
   let query = db
     .from("responses")
-    .select("id, person_id, transcription, themes, mood, sentiment, video_url, source_type, source_form_name, share_url, raw_analysis, is_hidden, created_at, person:people(name, email)", { count: "exact" })
+    .select("id, person_id, campaign_id, transcription, themes, mood, sentiment, video_url, source_type, source_form_name, share_url, raw_analysis, is_hidden, created_at, person:people(name, email)", { count: "exact" })
     .eq("tenant_id", tenantId);
 
   if (campaignId) query = query.eq("campaign_id", campaignId);

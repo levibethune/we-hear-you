@@ -20,7 +20,7 @@ export async function GET(
       .eq("tenant_id", tenantId)
       .single(),
     db.from("responses")
-      .select("id, transcription, themes, mood, sentiment, video_url, source_type, source_form_name, share_url, raw_analysis, created_at")
+      .select("id, campaign_id, transcription, themes, mood, sentiment, video_url, source_type, source_form_name, share_url, raw_analysis, created_at")
       .eq("person_id", id)
       .eq("tenant_id", tenantId)
       .order("created_at", { ascending: false }),
