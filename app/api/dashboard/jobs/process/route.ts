@@ -394,6 +394,7 @@ async function processReanalyzeBatch(
 
           await evalFlows(tenantId, resp.campaign_id || null, "response_created", {
             id: resp.id,
+            campaign_id: resp.campaign_id || null,
             transcription: resp.transcription,
             themes: (analysis.themes as string[]) ?? [],
             mood: analysis.mood as string,

@@ -124,7 +124,7 @@ export default async function handler(req, res) {
     if (personError) throw personError;
 
     // 12. Insert response
-    const { error: responseError } = await supabase.from("responses").upsert(
+    const { data: insertedResponse, error: responseError } = await supabase.from("responses").upsert(
       {
         tenant_id: tenantId,
         campaign_id: campaignId,
@@ -140,7 +140,7 @@ export default async function handler(req, res) {
         raw_analysis: analysis,
       },
       { onConflict: "videoask_response_id" }
-    );
+    ).select("id").single();
 
     if (responseError) throw responseError;
 
@@ -157,7 +157,7 @@ export default async function handler(req, res) {
 
     // 14. Evaluate flows (fire matching webhooks)
     await evaluateFlows(tenantId, campaignId, "response_created", {
-      id: person.id,
+      id: insertedResponse?.id ?? null,
       campaign_id: campaignId,
       transcription: cleanTranscription,
       themes: analysis.themes || [],
