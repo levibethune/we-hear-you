@@ -226,23 +226,6 @@ export function ResponseCard({
       {/* Footer actions */}
       {!compact && (
         <div className="flex items-center justify-end gap-4 mt-4 pt-3 border-t border-muted/10">
-          {!editing && (
-            <button
-              onClick={() => { setEditText(transcription); setEditing(true); }}
-              className="text-xs text-muted hover:text-foreground transition-colors"
-            >
-              Edit transcript
-            </button>
-          )}
-          {!editing && transcription.trim() && (
-            <button
-              onClick={handleReanalyze}
-              disabled={reprocessing}
-              className="text-xs text-muted hover:text-foreground transition-colors disabled:opacity-50"
-            >
-              {reprocessing ? "Re-analyzing…" : "Re-analyze"}
-            </button>
-          )}
           {!editing && campaigns.length > 0 && (() => {
             const currentCampaign = response.campaign_id
               ? campaigns.find((c) => c.id === response.campaign_id)
@@ -251,20 +234,20 @@ export function ResponseCard({
               ? `In ${currentCampaign.name}`
               : "No campaign";
             return (
-              <div className="relative">
+              <div className="relative mr-auto">
                 <button
                   onClick={() => setMovingCampaign((v) => !v)}
                   disabled={reprocessing}
-                  className={`text-xs transition-colors disabled:opacity-50 inline-flex items-center gap-1 ${currentCampaign ? "text-foreground hover:text-accent" : "text-muted hover:text-foreground"}`}
+                  className={`text-xs transition-colors disabled:opacity-50 inline-flex items-center gap-1.5 ${currentCampaign ? "text-foreground hover:text-accent" : "text-muted hover:text-foreground"}`}
                   title="Change campaign"
                 >
                   {buttonLabel}
-                  <span className="text-[8px] text-muted">▾</span>
+                  <span className="text-xs leading-none">▾</span>
                 </button>
                 {movingCampaign && (
                   <>
                     <div className="fixed inset-0 z-10" onClick={() => setMovingCampaign(false)} />
-                    <div className="absolute right-0 top-full mt-1 z-20 soft-card p-1.5 w-60 max-w-[260px] flex flex-col gap-0.5 shadow-lg">
+                    <div className="absolute left-0 top-full mt-1 z-20 soft-card p-1.5 w-60 max-w-[260px] flex flex-col gap-0.5 shadow-lg">
                       {campaigns.filter((c) => !c.is_archived).map((c) => {
                         const isCurrent = response.campaign_id === c.id;
                         return (
@@ -299,6 +282,23 @@ export function ResponseCard({
               </div>
             );
           })()}
+          {!editing && (
+            <button
+              onClick={() => { setEditText(transcription); setEditing(true); }}
+              className="text-xs text-muted hover:text-foreground transition-colors"
+            >
+              Edit transcript
+            </button>
+          )}
+          {!editing && transcription.trim() && (
+            <button
+              onClick={handleReanalyze}
+              disabled={reprocessing}
+              className="text-xs text-muted hover:text-foreground transition-colors disabled:opacity-50"
+            >
+              {reprocessing ? "Re-analyzing…" : "Re-analyze"}
+            </button>
+          )}
           {hasVideo && (
             <button
               onClick={() => setShowVideo(!showVideo)}
