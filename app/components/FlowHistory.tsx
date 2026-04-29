@@ -7,6 +7,7 @@ interface Execution {
   created_at: string;
   trigger_event: string;
   trigger_record_id: string;
+  trigger_label: string | null;
   status: "success" | "failed" | "skipped";
   response_status_code: number | null;
   response_body: string | null;
@@ -153,7 +154,7 @@ export function FlowHistory({ tenantId, flowId }: { tenantId: string; flowId: st
           {executions.map((ex) => {
             const isOpen = expanded.has(ex.id);
             const eventLabel = EVENT_LABELS[ex.trigger_event] ?? ex.trigger_event;
-            const recordShort = ex.trigger_record_id?.slice(0, 8) || "—";
+            const recordShort = ex.trigger_label || ex.trigger_record_id?.slice(0, 8) || "—";
             const statusStyle = STATUS_STYLES[ex.status] ?? STATUS_STYLES.failed;
             const statusLabel = STATUS_LABELS[ex.status] ?? ex.status;
             const inlineReason = ex.error || (ex.status === "failed" && ex.response_status_code != null ? `HTTP ${ex.response_status_code}` : null);
@@ -173,7 +174,8 @@ export function FlowHistory({ tenantId, flowId }: { tenantId: string; flowId: st
                       {timeAgo(ex.created_at)}
                     </span>
                     <span className="text-xs flex-1 truncate">
-                      {eventLabel} <span className="text-muted">·</span> <span className="font-mono text-muted">{recordShort}</span>
+                      {eventLabel} <span className="text-muted">·</span>{" "}
+                      <span className={ex.trigger_label ? "text-foreground" : "font-mono text-muted"}>{recordShort}</span>
                     </span>
                     {ex.response_status_code != null && (
                       <span className="text-[10px] font-mono text-muted shrink-0">HTTP {ex.response_status_code}</span>
