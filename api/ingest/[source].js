@@ -27,12 +27,21 @@ export default async function handler(req, res) {
   const supabase = getServiceClient();
   const { data: tenant } = await supabase
     .from("tenants")
-    .select("webhook_secret")
+    .select("webhook_secret, webhook_secret_encrypted")
     .eq("id", tenantId)
     .single();
 
+  // Prefer encrypted secret; fall back to plaintext during transition
+  let webhookSecret = null;
+  if (tenant?.webhook_secret_encrypted) {
+    const { decrypt } = await import("../../lib/crypto/pii.js");
+    webhookSecret = await decrypt(tenant.webhook_secret_encrypted);
+  } else if (tenant?.webhook_secret) {
+    webhookSecret = tenant.webhook_secret;
+  }
+
   // 4. Verify webhook signature (if tenant has a secret configured)
-  const sigValid = verifyWebhookSignature(req, res, tenant?.webhook_secret);
+  const sigValid = verifyWebhookSignature(req, res, webhookSecret);
   if (!sigValid) return;
 
   // 5. Resolve adapter from dynamic route

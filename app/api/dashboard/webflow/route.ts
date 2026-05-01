@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerClient } from "../../../lib/supabase-server";
 import { verifyTenantAccess, unauthorized, forbidden } from "../../../lib/dashboard-auth";
 import { validateToken } from "../../../../lib/integrations/webflow.js";
+import { buildEncryptedTokenColumns } from "../../../../lib/crypto/oauth-helpers.js";
 
 // GET — check if token exists
 export async function GET(request: NextRequest) {
@@ -40,13 +41,14 @@ export async function POST(request: NextRequest) {
   }
 
   const db = getServerClient();
-  // Upsert by (tenant_id, provider)
+  // Upsert by (tenant_id, provider) — token stored encrypted only
+  const encryptedCols = await buildEncryptedTokenColumns({ access_token: api_token.trim() });
   await db
     .from("oauth_connections")
     .upsert({
       tenant_id,
       provider: "webflow",
-      access_token: api_token.trim(),
+      ...encryptedCols,
       updated_at: new Date().toISOString(),
     }, { onConflict: "tenant_id,provider" });
 

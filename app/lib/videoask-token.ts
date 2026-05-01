@@ -1,4 +1,5 @@
 import { getServerClient } from "./supabase-server";
+import { readOAuthToken, buildEncryptedTokenColumns, OAUTH_TOKEN_SELECT } from "../../lib/crypto/oauth-helpers.js";
 
 interface TokenResult {
   token: string;
@@ -18,7 +19,7 @@ export async function getVideoAskToken(
 
   const { data: connection } = await db
     .from("oauth_connections")
-    .select("id, access_token, refresh_token, token_expires_at")
+    .select(`id, token_expires_at, ${OAUTH_TOKEN_SELECT}`)
     .eq("tenant_id", tenantId)
     .eq("provider", "videoask")
     .maybeSingle();
@@ -34,13 +35,14 @@ export async function getVideoAskToken(
   const isExpired = !expiresAt || expiresAt.getTime() - 60000 < Date.now();
 
   if (!isExpired && !forceRefresh) {
-    return connection.access_token;
+    return await readOAuthToken(connection, "access_token");
   }
 
   // Token expired or force refresh — try to get a new one
-  if (!connection.refresh_token) return null;
+  const refreshTokenValue = await readOAuthToken(connection, "refresh_token");
+  if (!refreshTokenValue) return null;
 
-  const refreshed = await refreshVideoAskToken(connection.id, connection.refresh_token);
+  const refreshed = await refreshVideoAskToken(connection.id, refreshTokenValue);
   return refreshed?.token ?? null;
 }
 
@@ -78,11 +80,14 @@ async function refreshVideoAskToken(
     : null;
 
   const db = getServerClient();
+  const encryptedCols = await buildEncryptedTokenColumns({
+    access_token: tokens.access_token,
+    refresh_token: tokens.refresh_token ?? refreshToken,
+  });
   await db
     .from("oauth_connections")
     .update({
-      access_token: tokens.access_token,
-      refresh_token: tokens.refresh_token ?? refreshToken,
+      ...encryptedCols,
       token_expires_at: newExpiresAt,
       updated_at: new Date().toISOString(),
     })

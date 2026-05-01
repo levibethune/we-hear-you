@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getServerClient } from "../../../../lib/supabase-server";
 import { verifyTenantAccess, unauthorized, forbidden } from "../../../../lib/dashboard-auth";
+import { checkAIRateLimit } from "../../../../lib/ai-rate-limit";
 
 async function getAnalyzer() {
   const { analyzeTranscription } = await import("../../../../../lib/analyze.js");
@@ -37,6 +38,9 @@ export async function POST(request: NextRequest) {
   if (!response_id) {
     return NextResponse.json({ error: "response_id required" }, { status: 400 });
   }
+
+  const limited = await checkAIRateLimit(tenant_id, 1);
+  if (limited) return limited;
 
   const db = getServerClient();
 

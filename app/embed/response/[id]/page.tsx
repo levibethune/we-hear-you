@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 import { getServerClient } from "../../../lib/supabase-server";
 import { EmbedPlayer } from "./EmbedPlayer";
+import { checkEmbedRateLimit } from "../../../lib/embed-rate-limit";
 
 export async function generateMetadata({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -26,6 +27,10 @@ export default async function EmbedResponsePage({
 }) {
   const { id } = await params;
   const query = await searchParams;
+
+  const allowed = await checkEmbedRateLimit();
+  if (!allowed) return notFound();
+
   const db = getServerClient();
 
   const { data: response } = await db

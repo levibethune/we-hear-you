@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getServerClient } from "../../../../../lib/supabase-server";
 import { verifyState } from "../route";
+import { buildEncryptedTokenColumns } from "../../../../../../lib/crypto/oauth-helpers.js";
 
 export async function GET(request: NextRequest) {
   const code = request.nextUrl.searchParams.get("code");
@@ -58,12 +59,15 @@ export async function GET(request: NextRequest) {
     : null;
 
   const db = getServerClient();
+  const encryptedCols = await buildEncryptedTokenColumns({
+    access_token: tokens.access_token,
+    refresh_token: tokens.refresh_token ?? null,
+  });
   const { error: dbError } = await db.from("oauth_connections").upsert(
     {
       tenant_id: tenantId,
       provider: "videoask",
-      access_token: tokens.access_token,
-      refresh_token: tokens.refresh_token ?? null,
+      ...encryptedCols,
       token_expires_at: expiresAt,
       scopes: tokens.scope ?? null,
       updated_at: new Date().toISOString(),

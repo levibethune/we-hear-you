@@ -61,15 +61,17 @@ export default async function handler(req, res) {
   const supabase = getServiceClient();
 
   try {
-    // 1. Create tenant with a webhook secret
+    // 1. Create tenant with a webhook secret (encrypted at rest)
     const webhookSecret = crypto.randomBytes(32).toString("hex");
+    const { encrypt } = await import("../../lib/crypto/pii.js");
+    const webhookSecretEncrypted = await encrypt(webhookSecret);
 
     const { data: tenant, error: tenantError } = await supabase
       .from("tenants")
       .insert({
         name,
         slug,
-        webhook_secret: webhookSecret,
+        webhook_secret_encrypted: webhookSecretEncrypted,
         allowed_domains: allowed_domains || [],
         default_role: default_role || "admin",
       })

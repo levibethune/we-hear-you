@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getServerClient } from "../../../lib/supabase-server";
 import { verifyTenantAccess, unauthorized, forbidden } from "../../../lib/dashboard-auth";
+import { checkAIRateLimit } from "../../../lib/ai-rate-limit";
 
 async function getAnalyzer() {
   const { analyzeTranscription } = await import("../../../../lib/analyze.js");
@@ -146,6 +147,10 @@ export async function POST(request: NextRequest) {
   }
 
   if (action === "reanalyze") {
+    // Reserve AI budget up front: 1 token per item that will be processed
+    const limited = await checkAIRateLimit(tenant_id, ids.length);
+    if (limited) return limited;
+
     const analyzeTranscription = await getAnalyzer();
 
     // Get analysis config

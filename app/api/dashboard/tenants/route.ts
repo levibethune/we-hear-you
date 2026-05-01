@@ -77,14 +77,16 @@ export async function POST(request: NextRequest) {
 
   const db = getServerClient();
 
-  // Create tenant
+  // Create tenant — webhook secret stored encrypted at rest
   const webhookSecret = crypto.randomBytes(32).toString("hex");
+  const { encrypt } = await import("../../../../lib/crypto/pii.js");
+  const webhookSecretEncrypted = await encrypt(webhookSecret);
   const { data: tenant, error: tenantErr } = await db
     .from("tenants")
     .insert({
       name,
       slug: slug.toLowerCase().replace(/[^a-z0-9-]/g, "-"),
-      webhook_secret: webhookSecret,
+      webhook_secret_encrypted: webhookSecretEncrypted,
       allowed_domains: allowed_domains ?? [],
       default_role: default_role ?? "admin",
     })
