@@ -3,6 +3,66 @@ import { Logo } from "../components/Logo";
 
 const releases = [
   {
+    version: "1.5",
+    date: "May 7, 2026",
+    title: "History, Move to Campaign, and a Security Pass",
+    summary:
+      "Output flows now log every attempt — sent, failed, or filtered out — with human-readable reasons, so you can trace why any response did or didn’t publish. Move responses between campaigns from a single click on the response card; analysis re-runs under the new campaign’s schema and matching outputs re-fire. Plus a top-to-bottom security pass: secrets encrypted at rest, real RLS as a backstop, rate limits on AI-burning and public endpoints, and a stronger guard against prompt injection.",
+    sections: [
+      {
+        heading: "Output flow history",
+        items: [
+          "New History section on every Webflow output — every evaluation is logged with status (sent, failed, or skipped) and a one-line reason inline",
+          "Skipped attempts (filter mismatch, safety filter) now log with a human-readable reason; non-matches used to be silent",
+          "Skip reasons resolve campaign IDs to names (e.g. “Campaign should be ‘Dog Stories’ or ‘DOGCULTR Boulder Kick Off’”)",
+          "ANY-mode conditions on the same field collapse into a single readable phrase instead of repeating",
+          "Rows label the trigger record by person name (e.g. “New response · Leigh”) instead of a UUID prefix",
+          "History is collapsed by default with an event count; expand to see the list and full payload/response details",
+        ],
+      },
+      {
+        heading: "Filter prevention (Webflow outputs)",
+        items: [
+          "“What this output will do” plain-language summary card right above Save so you can read your filter back before committing",
+          "Match ALL / ANY toggle now has a one-line description explaining what each option does",
+          "Conditions that would create an unsatisfiable filter (e.g. Campaign is X AND Campaign is Y under ALL logic) are blocked at the dropdown level with an inline hint pointing to the fix",
+          "Save button is disabled and the warning is surfaced if an existing flow ends up in an impossible state",
+        ],
+      },
+      {
+        heading: "Response actions",
+        items: [
+          "Re-analyze action on individual response cards — re-runs analysis on one response without going through bulk select",
+          "Move to campaign picker on every response, with the current campaign shown in the footer label (e.g. “In Dog Stories”)",
+          "Picker is a true select/deselect list — click the current campaign to remove, click any other to move",
+          "Moving to a campaign re-runs analysis under that campaign’s schema and re-fires matching output flows so the response routes correctly",
+        ],
+      },
+      {
+        heading: "Bug fixes",
+        items: [
+          "Re-analyzed responses are now correctly evaluated against campaign filters (campaign_id was missing from the flow eval payload)",
+          "Imports no longer silently drop campaign_id when the campaign list hasn’t finished loading on the import page",
+          "Person timeline now refreshes immediately after a campaign move (the refresh callback wasn’t wired up)",
+          "Response cards show the actual assigned campaign instead of always reading “No campaign” (the API wasn’t selecting campaign_id)",
+          "Flow executions log against the response ID instead of the person ID at ingest time",
+        ],
+      },
+      {
+        heading: "Security pass",
+        items: [
+          "OAuth access and refresh tokens (Webflow, VideoAsk) now encrypted at rest with AES-256-GCM — plaintext columns dropped",
+          "Tenant webhook secrets encrypted at rest using the same scheme",
+          "Two tables (insight_cache, tenants) had broken or missing Row-Level Security; both now properly enforced",
+          "Eight tables had RLS policies keyed to a Postgres setting the app never set, meaning RLS was effectively off; replaced with auth.uid()-based policies that actually enforce tenant isolation",
+          "AI rate limiting on /api/dashboard/responses/reprocess and bulk reanalyze (100 per hour per tenant) protects against runaway cost from compromised admin accounts",
+          "IP-based rate limiting on /embed/response/[id] (60 per minute) blocks scraping of public embed pages",
+          "Prompt injection defense hardened with a post-guard so tenant-supplied analysis prompts can no longer override the security instructions",
+        ],
+      },
+    ],
+  },
+  {
     version: "1.0",
     date: "April 14, 2026",
     title: "Campaigns, Outputs, Notifications, Video Feeds & Filter/Flow",
