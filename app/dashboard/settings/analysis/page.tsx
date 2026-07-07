@@ -19,6 +19,10 @@ export default function AnalysisConfigPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [reanalyzeOpen, setReanalyzeOpen] = useState(false);
+  const [campaignCount, setCampaignCount] = useState<number | null>(null);
+  const [orgCount, setOrgCount] = useState<number | null>(null);
+  const [reanalyzeStatus, setReanalyzeStatus] = useState("");
 
   const initialLoadDone = useRef(false);
 
@@ -112,6 +116,50 @@ export default function AnalysisConfigPage() {
     setTimeout(() => setSaved(false), 3000);
   }
 
+  async function openReanalyze() {
+    if (!tenant) return;
+    setReanalyzeStatus("");
+    setCampaignCount(null);
+    setOrgCount(null);
+    setReanalyzeOpen(true);
+    const base = `/api/dashboard/responses?tenant_id=${tenant.id}&ids_only=true`;
+    const [campaignRes, orgRes] = await Promise.all([
+      activeCampaign
+        ? fetch(`${base}&campaign_id=${activeCampaign.id}`).then((r) => r.json())
+        : Promise.resolve({ total: 0 }),
+      fetch(base).then((r) => r.json()),
+    ]);
+    setCampaignCount(campaignRes.total ?? 0);
+    setOrgCount(orgRes.total ?? 0);
+  }
+
+  async function launchReanalyze(scope: "campaign" | "tenant") {
+    if (!tenant) return;
+    setReanalyzeStatus("Starting...");
+    const res = await fetch("/api/dashboard/jobs", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        tenant_id: tenant.id,
+        ...(scope === "campaign" && activeCampaign ? { campaign_id: activeCampaign.id } : {}),
+        type: "bulk_reanalyze",
+        params: scope === "campaign"
+          ? { scope: "campaign", campaign_id: activeCampaign?.id }
+          : { scope: "tenant" },
+      }),
+    });
+    if (res.status === 409) {
+      setReanalyzeStatus("A re-analysis is already running — watch its progress above.");
+      return;
+    }
+    if (!res.ok) {
+      setReanalyzeStatus("Couldn't start re-analysis. Try again.");
+      return;
+    }
+    track("bulk_reanalyze", { scope });
+    setReanalyzeOpen(false);
+  }
+
   async function handlePreview() {
     setPreviewLoading(true);
     setPreviewResult(null);
@@ -165,6 +213,12 @@ export default function AnalysisConfigPage() {
           {saving && <span className="text-[10px] text-muted animate-pulse">Saving...</span>}
           {saved && !saving && <span className="text-[10px] text-seafoam">Saved</span>}
           <button
+            onClick={openReanalyze}
+            className="text-xs text-seafoam hover:underline"
+          >
+            Re-analyze all
+          </button>
+          <button
             onClick={() => setPreviewOpen(true)}
             className="text-xs text-accent hover:underline"
           >
@@ -189,6 +243,43 @@ export default function AnalysisConfigPage() {
         <SchemaBuilder fields={fields} onChange={setFields} />
 
       </div>
+
+      <Modal
+        open={reanalyzeOpen}
+        onClose={() => setReanalyzeOpen(false)}
+        title="Re-analyze responses"
+      >
+        <div className="flex flex-col gap-4">
+          <p className="text-sm text-muted">
+            Re-run AI analysis with the current criteria. This re-analyzes every
+            response in the chosen scope and may take a few minutes.
+          </p>
+          <button
+            onClick={() => launchReanalyze("campaign")}
+            disabled={campaignCount === null || campaignCount === 0}
+            className="soft-card p-3 text-left hover:shadow-lg transition-all disabled:opacity-50"
+          >
+            <p className="text-sm font-medium">This campaign</p>
+            <p className="text-xs text-muted">
+              Apply the criteria you just changed to all{" "}
+              {campaignCount === null ? "…" : campaignCount} responses in this campaign.
+            </p>
+          </button>
+          <button
+            onClick={() => launchReanalyze("tenant")}
+            disabled={orgCount === null || orgCount === 0}
+            className="soft-card p-3 text-left hover:shadow-lg transition-all disabled:opacity-50"
+          >
+            <p className="text-sm font-medium">Whole org</p>
+            <p className="text-xs text-muted">
+              Refresh all {orgCount === null ? "…" : orgCount} responses across your
+              organization. Each is re-run under its own campaign&apos;s criteria, not
+              just this campaign&apos;s.
+            </p>
+          </button>
+          {reanalyzeStatus && <p className="text-xs text-muted">{reanalyzeStatus}</p>}
+        </div>
+      </Modal>
 
       <Modal
         open={previewOpen}

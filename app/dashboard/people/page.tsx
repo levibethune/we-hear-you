@@ -150,6 +150,9 @@ export default function PeoplePage() {
         <BulkActionBar
           selectedCount={selected.size}
           totalCount={people.length}
+          matchingTotal={people.length}
+          allMatching={false}
+          onSelectAllMatching={() => {}}
           target="people"
           tenantId={tenant.id}
           selectedIds={Array.from(selected)}

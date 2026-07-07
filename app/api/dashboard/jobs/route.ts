@@ -47,6 +47,38 @@ export async function POST(request: NextRequest) {
 
   const db = getServerClient();
 
+  // For bulk_reanalyze, a scope descriptor is resolved to concrete response IDs
+  // at creation time so the worker's params.response_ids stays stable across
+  // the batched, multi-invocation processing.
+  let resolvedParams: Record<string, unknown> = params ?? {};
+  if (type === "bulk_reanalyze" && resolvedParams.scope) {
+    if (resolvedParams.scope === "campaign" && !resolvedParams.campaign_id) {
+      return NextResponse.json({ error: "campaign_id is required for campaign scope" }, { status: 400 });
+    }
+    const SCOPE_PAGE_SIZE = 1000; // matches the responses route's ids_only chunk size (PostgREST max_rows)
+    const scopeIds: string[] = [];
+    let offset = 0;
+    for (;;) {
+      let scopeQuery = db
+        .from("responses")
+        .select("id")
+        .eq("tenant_id", tenant_id)
+        .or("is_hidden.is.null,is_hidden.eq.false");
+      if (resolvedParams.scope === "campaign") {
+        scopeQuery = scopeQuery.eq("campaign_id", resolvedParams.campaign_id);
+      }
+      const { data: scopeRows, error: scopeError } = await scopeQuery.range(offset, offset + SCOPE_PAGE_SIZE - 1);
+      if (scopeError) {
+        return NextResponse.json({ error: "Failed to resolve responses for re-analysis" }, { status: 500 });
+      }
+      const rows = (scopeRows ?? []) as { id: string }[];
+      for (const r of rows) scopeIds.push(r.id);
+      if (rows.length < SCOPE_PAGE_SIZE) break;
+      offset += SCOPE_PAGE_SIZE;
+    }
+    resolvedParams = { response_ids: scopeIds };
+  }
+
   // Check for existing active job of same type
   const { data: existing } = await db
     .from("jobs")
@@ -67,7 +99,7 @@ export async function POST(request: NextRequest) {
       ...(campaign_id ? { campaign_id } : {}),
       type,
       status: "pending",
-      params: params ?? {},
+      params: resolvedParams,
       progress: { current: 0, total: 0, imported: 0, skipped: 0, failed: 0 },
       created_by: auth.user.id,
     })

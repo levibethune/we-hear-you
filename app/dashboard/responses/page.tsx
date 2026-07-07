@@ -27,6 +27,7 @@ export default function ResponsesPage() {
   const [formOptions, setFormOptions] = useState<string[]>([]);
   const [showHidden, setShowHidden] = useState(false);
   const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [allMatching, setAllMatching] = useState(false);
   const debouncedSearch = useDebounce(search, 300);
 
   // Analysis field filters — all from schema
@@ -80,6 +81,11 @@ export default function ResponsesPage() {
 
   useEffect(() => { fetchResponses(); }, [fetchResponses]);
 
+  useEffect(() => {
+    setSelected(new Set());
+    setAllMatching(false);
+  }, [debouncedSearch, source, form, sort, customFilters, showHidden, activeCampaign]);
+
   function toggleSelect(id: string) {
     setSelected((prev) => {
       const next = new Set(prev);
@@ -90,10 +96,34 @@ export default function ResponsesPage() {
   }
 
   function toggleSelectAll() {
+    setAllMatching(false);
     if (selected.size === responses.length) {
       setSelected(new Set());
     } else {
       setSelected(new Set(responses.map((r) => r.id)));
+    }
+  }
+
+  async function selectAllMatching() {
+    if (!tenant) return;
+    const params = new URLSearchParams({ tenant_id: tenant.id, sort, ids_only: "true" });
+    if (activeCampaign) params.set("campaign_id", activeCampaign.id);
+    if (debouncedSearch) params.set("search", debouncedSearch);
+    if (source) params.set("source", source);
+    if (form) params.set("form", form);
+    for (const [key, val] of Object.entries(customFilters)) {
+      if (val) params.set(`custom_${key}`, val);
+    }
+    if (showHidden) params.set("show_hidden", "true");
+
+    try {
+      const res = await fetch(`/api/dashboard/responses?${params}`);
+      if (!res.ok) return;
+      const data = await res.json();
+      setSelected(new Set(data.ids ?? []));
+      setAllMatching(true);
+    } catch {
+      // leave the current page selection unchanged on failure
     }
   }
 
@@ -156,14 +186,17 @@ export default function ResponsesPage() {
         <BulkActionBar
           selectedCount={selected.size}
           totalCount={responses.length}
+          matchingTotal={total}
+          allMatching={allMatching}
+          onSelectAllMatching={selectAllMatching}
           target="responses"
           tenantId={tenant.id}
           selectedIds={Array.from(selected)}
           allSelected={selected.size === responses.length}
           onToggleSelectAll={toggleSelectAll}
           showHidden={showHidden}
-          onAction={() => { setSelected(new Set()); fetchResponses(); }}
-          onClear={() => setSelected(new Set())}
+          onAction={() => { setSelected(new Set()); setAllMatching(false); fetchResponses(); }}
+          onClear={() => { setSelected(new Set()); setAllMatching(false); }}
         />
       )}
 
