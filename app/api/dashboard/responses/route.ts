@@ -2,25 +2,14 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerClient } from "../../../lib/supabase-server";
 import { verifyTenantAccess, unauthorized, forbidden } from "../../../lib/dashboard-auth";
 
-export async function GET(request: NextRequest) {
-  const params = request.nextUrl.searchParams;
-  const tenantId = params.get("tenant_id");
-  const auth = await verifyTenantAccess(request, tenantId, "viewer");
-  if (!auth) return tenantId ? forbidden() : unauthorized();
+const ID_PAGE_SIZE = 1000;
 
-  const page = Math.max(1, parseInt(params.get("page") ?? "1"));
-  const perPage = Math.min(100, Math.max(1, parseInt(params.get("per_page") ?? "25")));
-  const sentiment = params.get("sentiment");
-  const source = params.get("source");
-  const search = params.get("search");
-  const sort = params.get("sort");
-
-  const db = getServerClient();
-
-  const campaignId = params.get("campaign_id");
-  const showHidden = params.get("show_hidden") === "true";
-  const idsOnly = params.get("ids_only") === "true";
-
+function buildResponsesQuery(
+  db: ReturnType<typeof getServerClient>,
+  tenantId: string | null,
+  params: URLSearchParams,
+  idsOnly: boolean
+) {
   let query = db
     .from("responses")
     .select(
@@ -31,20 +20,18 @@ export async function GET(request: NextRequest) {
     )
     .eq("tenant_id", tenantId);
 
+  const campaignId = params.get("campaign_id");
   if (campaignId) query = query.eq("campaign_id", campaignId);
 
-  query = query.order("created_at", { ascending: sort === "oldest" });
-  if (!idsOnly) {
-    query = query.range((page - 1) * perPage, page * perPage - 1);
-  }
-
-  if (showHidden) {
+  if (params.get("show_hidden") === "true") {
     query = query.eq("is_hidden", true);
   } else {
     query = query.or("is_hidden.is.null,is_hidden.eq.false");
   }
 
+  const sentiment = params.get("sentiment");
   const moodParam = params.get("mood");
+  const source = params.get("source");
   const personaParam = params.get("persona");
   const form = params.get("form");
 
@@ -62,19 +49,47 @@ export async function GET(request: NextRequest) {
     }
   }
 
+  const search = params.get("search");
   if (search) {
     query = query.textSearch("transcription_search", search, { type: "websearch" });
   }
 
-  const { data, count, error } = await query;
-  if (error) return NextResponse.json({ error: "Failed to load responses" }, { status: 500 });
+  return query.order("created_at", { ascending: params.get("sort") === "oldest" });
+}
 
+export async function GET(request: NextRequest) {
+  const params = request.nextUrl.searchParams;
+  const tenantId = params.get("tenant_id");
+  const auth = await verifyTenantAccess(request, tenantId, "viewer");
+  if (!auth) return tenantId ? forbidden() : unauthorized();
+
+  const db = getServerClient();
+  const idsOnly = params.get("ids_only") === "true";
+
+  // ids_only: page through in chunks so the PostgREST max_rows cap (1000)
+  // can't silently truncate the full matching set — this powers "select all".
   if (idsOnly) {
-    return NextResponse.json({
-      ids: (data ?? []).map((r) => (r as unknown as { id: string }).id),
-      total: count ?? 0,
-    });
+    const ids: string[] = [];
+    let total = 0;
+    let offset = 0;
+    for (;;) {
+      const { data, count, error } = await buildResponsesQuery(db, tenantId, params, true)
+        .range(offset, offset + ID_PAGE_SIZE - 1);
+      if (error) return NextResponse.json({ error: "Failed to load responses" }, { status: 500 });
+      total = count ?? total;
+      const rows = (data ?? []) as unknown as { id: string }[];
+      for (const r of rows) ids.push(r.id);
+      if (rows.length < ID_PAGE_SIZE) break;
+      offset += ID_PAGE_SIZE;
+    }
+    return NextResponse.json({ ids, total });
   }
+
+  const page = Math.max(1, parseInt(params.get("page") ?? "1"));
+  const perPage = Math.min(100, Math.max(1, parseInt(params.get("per_page") ?? "25")));
+  const { data, count, error } = await buildResponsesQuery(db, tenantId, params, false)
+    .range((page - 1) * perPage, page * perPage - 1);
+  if (error) return NextResponse.json({ error: "Failed to load responses" }, { status: 500 });
 
   return NextResponse.json({
     responses: data ?? [],
