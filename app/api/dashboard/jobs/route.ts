@@ -47,6 +47,23 @@ export async function POST(request: NextRequest) {
 
   const db = getServerClient();
 
+  // For bulk_reanalyze, a scope descriptor is resolved to concrete response IDs
+  // at creation time so the worker's params.response_ids stays stable across
+  // the batched, multi-invocation processing.
+  let resolvedParams: Record<string, unknown> = params ?? {};
+  if (type === "bulk_reanalyze" && resolvedParams.scope) {
+    let scopeQuery = db
+      .from("responses")
+      .select("id")
+      .eq("tenant_id", tenant_id)
+      .or("is_hidden.is.null,is_hidden.eq.false");
+    if (resolvedParams.scope === "campaign" && resolvedParams.campaign_id) {
+      scopeQuery = scopeQuery.eq("campaign_id", resolvedParams.campaign_id);
+    }
+    const { data: scopeRows } = await scopeQuery;
+    resolvedParams = { response_ids: (scopeRows ?? []).map((r) => (r as { id: string }).id) };
+  }
+
   // Check for existing active job of same type
   const { data: existing } = await db
     .from("jobs")
@@ -67,7 +84,7 @@ export async function POST(request: NextRequest) {
       ...(campaign_id ? { campaign_id } : {}),
       type,
       status: "pending",
-      params: params ?? {},
+      params: resolvedParams,
       progress: { current: 0, total: 0, imported: 0, skipped: 0, failed: 0 },
       created_by: auth.user.id,
     })
