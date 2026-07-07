@@ -52,6 +52,9 @@ export async function POST(request: NextRequest) {
   // the batched, multi-invocation processing.
   let resolvedParams: Record<string, unknown> = params ?? {};
   if (type === "bulk_reanalyze" && resolvedParams.scope) {
+    if (resolvedParams.scope === "campaign" && !resolvedParams.campaign_id) {
+      return NextResponse.json({ error: "campaign_id is required for campaign scope" }, { status: 400 });
+    }
     let scopeQuery = db
       .from("responses")
       .select("id")
