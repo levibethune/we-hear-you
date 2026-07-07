@@ -19,17 +19,24 @@ export async function GET(request: NextRequest) {
 
   const campaignId = params.get("campaign_id");
   const showHidden = params.get("show_hidden") === "true";
+  const idsOnly = params.get("ids_only") === "true";
 
   let query = db
     .from("responses")
-    .select("id, person_id, campaign_id, transcription, themes, mood, sentiment, video_url, source_type, source_form_name, share_url, raw_analysis, is_hidden, created_at, person:people(name, email)", { count: "exact" })
+    .select(
+      idsOnly
+        ? "id"
+        : "id, person_id, campaign_id, transcription, themes, mood, sentiment, video_url, source_type, source_form_name, share_url, raw_analysis, is_hidden, created_at, person:people(name, email)",
+      { count: "exact" }
+    )
     .eq("tenant_id", tenantId);
 
   if (campaignId) query = query.eq("campaign_id", campaignId);
 
-  query = query
-    .order("created_at", { ascending: sort === "oldest" })
-    .range((page - 1) * perPage, page * perPage - 1);
+  query = query.order("created_at", { ascending: sort === "oldest" });
+  if (!idsOnly) {
+    query = query.range((page - 1) * perPage, page * perPage - 1);
+  }
 
   if (showHidden) {
     query = query.eq("is_hidden", true);
@@ -61,6 +68,13 @@ export async function GET(request: NextRequest) {
 
   const { data, count, error } = await query;
   if (error) return NextResponse.json({ error: "Failed to load responses" }, { status: 500 });
+
+  if (idsOnly) {
+    return NextResponse.json({
+      ids: (data ?? []).map((r) => (r as unknown as { id: string }).id),
+      total: count ?? 0,
+    });
+  }
 
   return NextResponse.json({
     responses: data ?? [],
