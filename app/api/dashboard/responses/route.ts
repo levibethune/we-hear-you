@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerClient } from "../../../lib/supabase-server";
 import { verifyTenantAccess, unauthorized, forbidden } from "../../../lib/dashboard-auth";
 
+// Must be >= the PostgREST `max_rows` in supabase/config.toml (currently 1000);
+// the chunk loop relies on a short page meaning "last page".
 const ID_PAGE_SIZE = 1000;
 
 function buildResponsesQuery(

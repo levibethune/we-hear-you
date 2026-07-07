@@ -116,10 +116,15 @@ export default function ResponsesPage() {
     }
     if (showHidden) params.set("show_hidden", "true");
 
-    const res = await fetch(`/api/dashboard/responses?${params}`);
-    const data = await res.json();
-    setSelected(new Set(data.ids ?? []));
-    setAllMatching(true);
+    try {
+      const res = await fetch(`/api/dashboard/responses?${params}`);
+      if (!res.ok) return;
+      const data = await res.json();
+      setSelected(new Set(data.ids ?? []));
+      setAllMatching(true);
+    } catch {
+      // leave the current page selection unchanged on failure
+    }
   }
 
   return (

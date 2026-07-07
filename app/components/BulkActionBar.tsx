@@ -41,29 +41,42 @@ export function BulkActionBar({
   const [moveOpen, setMoveOpen] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [reanalyzing, setReanalyzing] = useState(false);
+  const [bulkError, setBulkError] = useState("");
 
   async function handleBulk(action: string, moveToTenantId?: string) {
     setActing(true);
-    await fetch("/api/dashboard/bulk", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        tenant_id: tenantId,
-        action,
-        target,
-        ids: selectedIds,
-        move_to_tenant_id: moveToTenantId,
-      }),
-    });
+    setBulkError("");
+    const CHUNK = 100; // /api/dashboard/bulk caps non-reanalyze actions at 100 ids
+    let ok = true;
+    for (let i = 0; i < selectedIds.length; i += CHUNK) {
+      const res = await fetch("/api/dashboard/bulk", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          tenant_id: tenantId,
+          action,
+          target,
+          ids: selectedIds.slice(i, i + CHUNK),
+          move_to_tenant_id: moveToTenantId,
+        }),
+      });
+      if (!res.ok) { ok = false; break; }
+    }
     setActing(false);
     setMoveOpen(false);
     setConfirmDelete(false);
+    if (!ok) {
+      setBulkError("Something went wrong — not all items were updated. Refresh and try again.");
+      onAction(); // refresh to reflect any partial changes
+      return;
+    }
     track(`bulk_${action}`, { target, count: selectedIds.length });
     onAction();
   }
 
   async function handleReanalyze() {
     setReanalyzing(true);
+    setBulkError("");
 
     // For responses, use the IDs directly. For people, we need their response IDs.
     let responseIds = selectedIds;
@@ -77,7 +90,7 @@ export function BulkActionBar({
     }
 
     // Create a background job
-    await fetch("/api/dashboard/jobs", {
+    const res = await fetch("/api/dashboard/jobs", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -88,6 +101,14 @@ export function BulkActionBar({
     });
 
     setReanalyzing(false);
+    if (res.status === 409) {
+      setBulkError("A re-analysis is already running — watch its progress above.");
+      return;
+    }
+    if (!res.ok) {
+      setBulkError("Couldn't start re-analysis. Try again.");
+      return;
+    }
     track("bulk_reanalyze", { target, count: responseIds.length });
     onAction();
   }
@@ -144,6 +165,8 @@ export function BulkActionBar({
               <div className="h-3.5 w-px bg-muted/20" />
 
               <button onClick={onClear} className="text-xs text-muted hover:text-foreground">Clear</button>
+
+              {bulkError && <span className="text-xs text-negative">{bulkError}</span>}
             </div>
           ) : (
             <span className="text-xs text-muted">Select all</span>

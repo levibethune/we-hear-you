@@ -55,16 +55,28 @@ export async function POST(request: NextRequest) {
     if (resolvedParams.scope === "campaign" && !resolvedParams.campaign_id) {
       return NextResponse.json({ error: "campaign_id is required for campaign scope" }, { status: 400 });
     }
-    let scopeQuery = db
-      .from("responses")
-      .select("id")
-      .eq("tenant_id", tenant_id)
-      .or("is_hidden.is.null,is_hidden.eq.false");
-    if (resolvedParams.scope === "campaign" && resolvedParams.campaign_id) {
-      scopeQuery = scopeQuery.eq("campaign_id", resolvedParams.campaign_id);
+    const SCOPE_PAGE_SIZE = 1000; // matches the responses route's ids_only chunk size (PostgREST max_rows)
+    const scopeIds: string[] = [];
+    let offset = 0;
+    for (;;) {
+      let scopeQuery = db
+        .from("responses")
+        .select("id")
+        .eq("tenant_id", tenant_id)
+        .or("is_hidden.is.null,is_hidden.eq.false");
+      if (resolvedParams.scope === "campaign") {
+        scopeQuery = scopeQuery.eq("campaign_id", resolvedParams.campaign_id);
+      }
+      const { data: scopeRows, error: scopeError } = await scopeQuery.range(offset, offset + SCOPE_PAGE_SIZE - 1);
+      if (scopeError) {
+        return NextResponse.json({ error: "Failed to resolve responses for re-analysis" }, { status: 500 });
+      }
+      const rows = (scopeRows ?? []) as { id: string }[];
+      for (const r of rows) scopeIds.push(r.id);
+      if (rows.length < SCOPE_PAGE_SIZE) break;
+      offset += SCOPE_PAGE_SIZE;
     }
-    const { data: scopeRows } = await scopeQuery;
-    resolvedParams = { response_ids: (scopeRows ?? []).map((r) => (r as { id: string }).id) };
+    resolvedParams = { response_ids: scopeIds };
   }
 
   // Check for existing active job of same type
