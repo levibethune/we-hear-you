@@ -8,6 +8,9 @@ import { track } from "../lib/analytics";
 interface BulkActionBarProps {
   selectedCount: number;
   totalCount: number;
+  matchingTotal: number;
+  allMatching: boolean;
+  onSelectAllMatching: () => void;
   target: "people" | "responses";
   tenantId: string;
   selectedIds: string[];
@@ -21,6 +24,9 @@ interface BulkActionBarProps {
 export function BulkActionBar({
   selectedCount,
   totalCount,
+  matchingTotal,
+  allMatching,
+  onSelectAllMatching,
   target,
   tenantId,
   selectedIds,
@@ -105,6 +111,17 @@ export function BulkActionBar({
               <span className="text-sm font-medium">
                 {selectedCount} {plural}
               </span>
+
+              {allMatching ? (
+                <span className="text-xs text-muted">All {matchingTotal} selected</span>
+              ) : allSelected && matchingTotal > totalCount ? (
+                <button
+                  onClick={onSelectAllMatching}
+                  className="text-xs text-accent hover:underline"
+                >
+                  Select all {matchingTotal} {target === "people" ? "people" : "responses"}
+                </button>
+              ) : null}
 
               <div className="h-3.5 w-px bg-muted/20" />
 
